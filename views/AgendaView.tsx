@@ -12,7 +12,7 @@ import ScheduleIcon from '../components/icons/ScheduleIcon';
 import EventsIcon from '../components/icons/EventsIcon';
 import Input from '../components/ui/Input';
 import AddToGoogleCalendar from '../components/AddToGoogleCalendar';
-import SubscribeIcon from '../components/icons/SubscribeIcon';
+import { CalendarSyncIcon } from '../components/icons/CalendarSyncIcon';
 import CopyIcon from '../components/icons/CopyIcon';
 import CheckIcon from '../components/icons/CheckIcon';
 import GoogleCalendarIcon from '../components/icons/GoogleCalendarIcon';
@@ -46,7 +46,7 @@ interface EventAgendaItem extends AgendaItemBase {
   investment?: number;
   revenue?: number;
   originalEvent: Event;
-  startTime: string; // Events have non-nullable startTime
+  startTime: string;
 }
 
 type AgendaItem = MeetingAgendaItem | EventAgendaItem;
@@ -69,7 +69,7 @@ interface AgendaViewProps {
 }
 
 const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay(); // Sunday - 0, Monday - 1
+const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 const addMonths = (date: Date, months: number): Date => {
     const newDate = new Date(date);
     newDate.setMonth(newDate.getMonth() + months);
@@ -86,7 +86,7 @@ const addDays = (date: Date, days: number): Date => {
     return newDate;
 };
 
-const getStartOfWeek = (date: Date, startDay: number = 0): Date => { // 0 for Sunday, 1 for Monday
+const getStartOfWeek = (date: Date, startDay: number = 0): Date => {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === startDay ? 0 : (day < startDay ? -7 + startDay : startDay) );
@@ -197,7 +197,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
   const agendaItemsByDate = useMemo(() => {
     const map = new Map<string, AgendaItem[]>();
     filteredAgendaItemsGlobal.forEach(item => {
-      const dateKey = item.date; // Assumes item.date is YYYY-MM-DD
+      const dateKey = item.date;
       if (!map.has(dateKey)) map.set(dateKey, []);
       map.get(dateKey)!.push(item);
     });
@@ -237,15 +237,13 @@ const AgendaView: React.FC<AgendaViewProps> = ({
 
   const getCalendarTitle = () => {
     const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const day = currentDate.getDate();
     const monthNameLong = currentDate.toLocaleDateString('es-ES', { month: 'long' });
 
     switch (calendarViewMode) {
         case 'month': return `${monthNameLong.charAt(0).toUpperCase() + monthNameLong.slice(1)} ${year}`;
         case 'year': return `${year}`;
         case 'week':
-            const startOfWeek = getStartOfWeek(currentDate, 0); // Sunday as start
+            const startOfWeek = getStartOfWeek(currentDate, 0);
             const endOfWeek = addDays(startOfWeek, 6);
             const startMonthName = startOfWeek.toLocaleDateString('es-ES', { month: 'long' });
             const endMonthName = endOfWeek.toLocaleDateString('es-ES', { month: 'long' });
@@ -253,7 +251,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                 return `Semana del ${startOfWeek.getDate()} al ${endOfWeek.getDate()} de ${startMonthName}, ${year}`;
             }
             return `Semana del ${startOfWeek.getDate()} de ${startMonthName} al ${endOfWeek.getDate()} de ${endMonthName}, ${year}`;
-        case 'day': return `${day} de ${monthNameLong}, ${year}`;
+        case 'day': return `${currentDate.getDate()} de ${monthNameLong}, ${year}`;
         default: return '';
     }
   };
@@ -303,7 +301,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
     const monthsGrid = [];
     for (let i = 0; i < 12; i++) {
         const monthDate = new Date(year, i, 1);
-        const monthKeyPrefix = formatDateToYYYYMMDD(monthDate).substring(0, 7); // YYYY-MM
+        const monthKeyPrefix = formatDateToYYYYMMDD(monthDate).substring(0, 7);
         let itemsInMonthCount = 0;
         agendaItemsByDate.forEach((items, dateKey) => {
             if (dateKey.startsWith(monthKeyPrefix)) {
@@ -327,7 +325,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
   };
 
   const renderWeekGrid = () => {
-    const startOfWeek = getStartOfWeek(currentDate, 0); // Sunday start
+    const startOfWeek = getStartOfWeek(currentDate, 0);
     const weekDays = [];
     const today = new Date();
 
@@ -549,7 +547,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
               </Button>
               <Button onClick={() => setIsSubscriptionModalOpen(true)} variant="secondary" size="md" className="!p-2.5" aria-label="Suscribirse al calendario">
-                  <SubscribeIcon className="h-5 w-5" />
+                  <CalendarSyncIcon className="h-5 w-5" />
               </Button>
           </div>
 
@@ -691,12 +689,12 @@ const AgendaView: React.FC<AgendaViewProps> = ({
       <Modal isOpen={isSubscriptionModalOpen} onClose={() => setIsSubscriptionModalOpen(false)} title="Suscribirse al Calendario">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Para ver todas las reuniones y eventos en tu aplicación de calendario preferida (Google Calendar, Outlook, Apple Calendar), puedes suscribirte a la URL de la agenda. Los eventos se actualizarán automáticamente.
+            Copia esta URL para ver todas las reuniones y eventos en tu aplicación de calendario (Google, Outlook, Apple). La agenda se actualizará automáticamente.
           </p>
           
           <div>
             <label htmlFor="calendar-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              URL de la Agenda (iCal)
+              URL de Suscripción (iCal)
             </label>
             <div className="flex items-center gap-2">
               <Input
@@ -716,16 +714,19 @@ const AgendaView: React.FC<AgendaViewProps> = ({
           </div>
 
           <div className="pt-4 border-t dark:border-gray-600">
-            <h4 className="text-base font-semibold mb-3">Añadir con un clic:</h4>
-            <div className="flex flex-col sm:flex-row gap-3">
-                <a href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(CALENDAR_FEED_URL)}`} target="_blank" rel="noopener noreferrer" className="w-full block">
-                    <Button variant="primary" size="md" className="w-full">
-                        <GoogleCalendarIcon className="w-5 h-5 mr-2" /> Google Calendar
+            <h4 className="text-base font-semibold mb-2">Instrucciones</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+                Abre tu calendario, busca la opción "Añadir otro calendario" o "Suscribirse" y elige **"Desde una URL"**. Luego, pega el enlace que copiaste.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                <a href="https://calendar.google.com/" target="_blank" rel="noopener noreferrer" className="w-full block">
+                    <Button variant="secondary" size="md" className="w-full">
+                        <GoogleCalendarIcon className="w-5 h-5 mr-2" /> Abrir Google Calendar
                     </Button>
                 </a>
-                <a href={`webcal://${CALENDAR_FEED_URL.replace(/^https?:\/\//, '')}`} className="w-full block">
-                     <Button variant="primary" size="md" className="w-full">
-                        <ExternalLinkIcon className="w-5 h-5 mr-2" /> Outlook / Apple
+                <a href="webcal://" className="w-full block">
+                     <Button variant="secondary" size="md" className="w-full">
+                        <ExternalLinkIcon className="w-5 h-5 mr-2" /> Abrir Outlook / Apple
                     </Button>
                 </a>
             </div>
