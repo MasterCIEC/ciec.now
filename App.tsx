@@ -1,0 +1,770 @@
+
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ViewKey, Meeting, Participant, Company, MeetingCategory, Event, EventCategory,
+  ParticipantMeetingCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory
+} from './types';
+import { GALLERY_MENU_ITEMS } from './constants';
+import Button from './components/ui/Button';
+import { 
+  supabase, 
+  participantToSupabase, 
+  meetingToSupabase, 
+  eventToSupabase, 
+  companyToSupabase, 
+  participantToSupabaseForUpdate, 
+  meetingToSupabaseForUpdate, 
+  eventToSupabaseForUpdate, 
+  companyToSupabaseForUpdate,
+  participantFromSupabase,
+  meetingFromSupabase,
+  eventFromSupabase,
+  Database
+} from './supabaseClient';
+
+import MainMenuView from './views/MainMenuView';
+import ScheduleMeetingView from './views/ScheduleMeetingView';
+import ParticipantsView from './views/ParticipantsView';
+import CompaniesView from './views/CompaniesView';
+import AgendaView from './views/AgendaView';
+import ManageMeetingCategoriesView from './views/ManageCommitteesView';
+import ManageEventsView from './views/ManageEventsView';
+import ManageEventCategoriesView from './views/ManageEventCategoriesView';
+import { Theme } from './components/ThemeToggleButton';
+
+
+const App = (): JSX.Element => {
+  const [activeView, setActiveView] = useState<ViewKey>(ViewKey.MainMenuView);
+
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [meetingCategories, setMeetingCategories] = useState<MeetingCategory[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+
+  const [participantMeetingCategories, setParticipantMeetingCategories] = useState<ParticipantMeetingCategory[]>([]);
+  const [meetingAttendees, setMeetingAttendees] = useState<MeetingAttendee[]>([]);
+  const [eventAttendees, setEventAttendees] = useState<EventAttendee[]>([]);
+  const [eventOrganizingMeetingCategories, setEventOrganizingMeetingCategories] = useState<EventOrganizingMeetingCategory[]>([]);
+  const [eventOrganizingCategories, setEventOrganizingCategories] = useState<EventOrganizingCategory[]>([]);
+
+
+  const [meetingToEdit, setMeetingToEdit] = useState<Meeting | null>(null);
+  const [eventToEdit, setEventToEdit] = useState<Event | null>(null);
+
+  const [theme, setTheme] = useState<Theme>(() => {
+    const storedTheme = localStorage.getItem('theme') as Theme | null;
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      return storedTheme;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
+  const fetchMeetingCategories = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('Commissions').select('*');
+    if (error) console.error('Error al obtener categorías de reunión:', error.message, error);
+    else setMeetingCategories(data || []);
+  }, []);
+
+  const fetchCompanies = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('Companies').select('*');
+    if (error) console.error('Error al obtener empresas:', error.message, error);
+    else setCompanies(data || []);
+  }, []);
+
+  const fetchParticipants = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('Participants').select('*');
+    if (error) console.error('Error al obtener participantes:', error.message, error);
+    else setParticipants(data ? data.map(participantFromSupabase) : []);
+  }, []);
+
+  const fetchMeetings = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('Meetings').select('*');
+    if (error) console.error('Error al obtener reuniones:', error.message, error);
+    else setMeetings(data ? data.map(meetingFromSupabase) : []);
+  }, []);
+
+  const fetchEventCategories = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('EventCategories').select('*');
+    if (error) console.error('Error al obtener categorías de eventos:', error.message, error);
+    else setEventCategories(data || []);
+  }, []);
+
+  const fetchEvents = useCallback(async () => {
+    if (!supabase) return;
+
+    const { data: rawEventsData, error: rawEventsError } = await supabase.from('Events').select('*');
+    if (rawEventsError) {
+        console.error('Error fetching raw events:', rawEventsError.message);
+        setEvents([]);
+        return;
+    }
+    if (!rawEventsData) {
+        setEvents([]);
+        return;
+    }
+
+    const [eocResult, eocaResult] = await Promise.all([
+        supabase.from('event_organizing_commissions').select('*'),
+        supabase.from('event_organizing_categories').select('*')
+    ]);
+
+    const { data: eocData, error: eocError } = eocResult;
+    if (eocError) console.error('Error fetching event_organizing_commissions:', eocError.message);
+
+    const { data: eocaData, error: eocaError } = eocaResult;
+    if (eocaError) console.error('Error fetching event_organizing_categories:', eocaError.message);
+
+    const processedEvents = rawEventsData.map(dbEvent => {
+        const baseEvent = eventFromSupabase(dbEvent); 
+        let determinedOrganizerType: 'meeting_category' | 'category' = 'meeting_category';
+
+        if (eocData?.some(link => link.event_id === baseEvent.id)) {
+            determinedOrganizerType = 'meeting_category';
+        } else if (eocaData?.some(link => link.event_id === baseEvent.id)) {
+            determinedOrganizerType = 'category';
+        } else {
+            console.warn(`Event ${baseEvent.id} ('${baseEvent.subject}') has no organizer links in join tables. Defaulting organizerType to 'meeting_category'.`);
+        }
+        
+        return { ...baseEvent, organizerType: determinedOrganizerType } as Event;
+    });
+    setEvents(processedEvents);
+}, []);
+
+
+  const fetchParticipantMeetingCategories = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('participant_commissions').select('participant_id, commission_id');
+    if (error) console.error('Error fetching participant_commissions:', error.message);
+    else {
+      const mappedData = data ? data.map(item => ({ participant_id: item.participant_id, meeting_category_id: item.commission_id })) : [];
+      setParticipantMeetingCategories(mappedData);
+    }
+  }, []);
+
+  const fetchMeetingAttendees = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('meeting_attendees').select('*');
+    if (error) console.error('Error fetching meeting_attendees:', error.message);
+    else setMeetingAttendees(data || []);
+  }, []);
+
+  const fetchEventAttendees = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('event_attendees').select('*');
+    if (error) console.error('Error fetching event_attendees:', error.message);
+    else setEventAttendees(data || []);
+  }, []);
+
+  const fetchEventOrganizingMeetingCategories = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('event_organizing_commissions').select('event_id, commission_id');
+    if (error) console.error('Error fetching event_organizing_commissions:', error.message);
+    else {
+        const mappedData = data ? data.map(item => ({ event_id: item.event_id, meeting_category_id: item.commission_id })) : [];
+        setEventOrganizingMeetingCategories(mappedData);
+    }
+  }, []);
+
+  const fetchEventOrganizingCategories = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase.from('event_organizing_categories').select('*');
+    if (error) console.error('Error fetching event_organizing_categories:', error.message);
+    else setEventOrganizingCategories(data || []);
+  }, []);
+
+
+  useEffect(() => {
+    if (supabase) {
+      fetchMeetingCategories();
+      fetchCompanies();
+      fetchParticipants();
+      fetchMeetings();
+      fetchEventCategories();
+      fetchEvents(); 
+      fetchParticipantMeetingCategories();
+      fetchMeetingAttendees();
+      fetchEventAttendees();
+      fetchEventOrganizingMeetingCategories(); 
+      fetchEventOrganizingCategories(); 
+    }
+  }, [
+      fetchMeetingCategories, fetchCompanies, fetchParticipants, fetchMeetings,
+      fetchEventCategories, fetchEvents, fetchParticipantMeetingCategories,
+      fetchMeetingAttendees, fetchEventAttendees, fetchEventOrganizingMeetingCategories,
+      fetchEventOrganizingCategories
+    ]);
+
+
+  const navigate = (viewKey: ViewKey) => {
+    if (viewKey !== ViewKey.ScheduleMeeting) setMeetingToEdit(null);
+    if (viewKey !== ViewKey.ManageEvents) setEventToEdit(null);
+    setActiveView(viewKey);
+  };
+
+  const generateNextId = (prefix: string, items: Array<{id: string | undefined}>, padLength: number = 6): string => {
+    let maxNum = 0;
+    items.forEach(item => {
+      if (item.id && typeof item.id === 'string' && item.id.startsWith(prefix)) {
+        const numStr = item.id.substring(prefix.length);
+        if (/^\d+$/.test(numStr)) { 
+          const num = parseInt(numStr, 10);
+          if (num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    });
+    const nextNum = maxNum + 1;
+    return `${prefix}${nextNum.toString().padStart(padLength, '0')}`;
+  };
+
+
+  const handleAddParticipant = async (
+    participantData: Omit<Participant, 'id'>,
+    selectedCategoryIds: string[]
+  ) => {
+    if (!supabase) return;
+
+    const newParticipantId = generateNextId('P-', participants);
+    const participantWithId = { ...participantData, id: newParticipantId };
+
+    const { data: newParticipantEntry, error: participantError } = await supabase
+      .from('Participants')
+      .insert([participantToSupabase(participantWithId)])
+      .select('id')
+      .single();
+
+    if (participantError) {
+      console.error('Error al añadir participante:', participantError.message);
+      return;
+    }
+    if (newParticipantEntry && selectedCategoryIds.length > 0) {
+      const categoryLinks = selectedCategoryIds.map(category_id => ({
+        participant_id: newParticipantEntry.id,
+        commission_id: category_id,
+      }));
+      const { error: categoryError } = await supabase.from('participant_commissions').insert(categoryLinks);
+      if (categoryError) console.error('Error al enlazar categorías con participante:', categoryError.message);
+    }
+    fetchParticipants();
+    fetchParticipantMeetingCategories();
+  };
+
+  const handleUpdateParticipant = async (
+    participantId: string,
+    participantData: Omit<Participant, 'id'>,
+    selectedCategoryIds: string[]
+  ) => {
+    if (!supabase) return;
+    const { error: participantError } = await supabase
+      .from('Participants')
+      .update(participantToSupabaseForUpdate(participantData))
+      .eq('id', participantId);
+
+    if (participantError) {
+      console.error('Error al actualizar participante:', participantError.message);
+      return;
+    }
+
+    const { error: deleteError } = await supabase.from('participant_commissions').delete().eq('participant_id', participantId);
+    if (deleteError) console.error('Error al eliminar categorías antiguas del participante:', deleteError.message);
+
+    if (selectedCategoryIds.length > 0) {
+      const categoryLinks = selectedCategoryIds.map(category_id => ({
+        participant_id: participantId,
+        commission_id: category_id,
+      }));
+      const { error: insertError } = await supabase.from('participant_commissions').insert(categoryLinks);
+      if (insertError) console.error('Error al insertar nuevas categorías para el participante:', insertError.message);
+    }
+    fetchParticipants();
+    fetchParticipantMeetingCategories();
+  };
+
+  const handleDeleteParticipant = async (participantId: string) => {
+    if (!supabase) return;
+    await supabase.from('participant_commissions').delete().eq('participant_id', participantId);
+    await supabase.from('meeting_attendees').delete().eq('participant_id', participantId);
+    await supabase.from('event_attendees').delete().eq('participant_id', participantId);
+
+    const { error } = await supabase.from('Participants').delete().eq('id', participantId);
+    if (error) console.error('Error al eliminar participante:', error.message);
+    else {
+      fetchParticipants();
+      fetchParticipantMeetingCategories();
+      fetchMeetingAttendees(); 
+      fetchEventAttendees();   
+    }
+  };
+
+
+  const handleAddMeeting = async (
+    meetingData: Omit<Meeting, 'id'>,
+    selectedAttendeesInPersonIds: string[],
+    selectedAttendeesOnlineIds: string[]
+  ) => {
+    if (!supabase) return;
+    const { data: newMeeting, error: meetingError } = await supabase
+      .from('Meetings')
+      .insert([meetingToSupabase(meetingData)])
+      .select('id')
+      .single();
+
+    if (meetingError) {
+      console.error('Error al añadir reunión:', meetingError.message);
+      return;
+    }
+    if (newMeeting) {
+      const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
+      selectedAttendeesInPersonIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'in_person' }));
+      selectedAttendeesOnlineIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'online' }));
+
+      if (attendeesToInsert.length > 0) {
+        const finalAttendees = attendeesToInsert.map(att => ({ ...att, meeting_id: newMeeting.id }));
+        const { error: attendeesError } = await supabase.from('meeting_attendees').insert(finalAttendees);
+        if (attendeesError) console.error('Error al añadir asistentes a la reunión:', attendeesError.message);
+      }
+    }
+    fetchMeetings();
+    fetchMeetingAttendees();
+    setMeetingToEdit(null);
+  };
+
+  const handleUpdateMeeting = async (
+    meetingId: string,
+    meetingData: Omit<Meeting, 'id'>,
+    selectedAttendeesInPersonIds: string[],
+    selectedAttendeesOnlineIds: string[]
+  ) => {
+    if (!supabase) return;
+    const { error: meetingError } = await supabase
+      .from('Meetings')
+      .update(meetingToSupabaseForUpdate(meetingData))
+      .eq('id', meetingId);
+
+    if (meetingError) {
+      console.error('Error al actualizar reunión:', meetingError.message);
+      return;
+    }
+
+    const { error: deleteError } = await supabase.from('meeting_attendees').delete().eq('meeting_id', meetingId);
+    if (deleteError) console.error('Error al eliminar asistentes antiguos de la reunión:', deleteError.message);
+
+    const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
+    selectedAttendeesInPersonIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'in_person' }));
+    selectedAttendeesOnlineIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'online' }));
+
+    if (attendeesToInsert.length > 0) {
+      const finalAttendees = attendeesToInsert.map(att => ({ ...att, meeting_id: meetingId }));
+      const { error: insertError } = await supabase.from('meeting_attendees').insert(finalAttendees);
+      if (insertError) console.error('Error al insertar nuevos asistentes para la reunión:', insertError.message);
+    }
+    fetchMeetings();
+    fetchMeetingAttendees();
+    setMeetingToEdit(null);
+  };
+
+  const handleDeleteMeeting = async (meetingId: string) => {
+    if (!supabase) return;
+    await supabase.from('meeting_attendees').delete().eq('meeting_id', meetingId);
+    
+    const { error } = await supabase.from('Meetings').delete().eq('id', meetingId);
+    if (error) console.error('Error al eliminar reunión:', error.message);
+    else {
+      fetchMeetings();
+      fetchMeetingAttendees();
+    }
+  };
+
+  const handleEditMeeting = (meeting: Meeting) => {
+    setMeetingToEdit(meeting);
+    navigate(ViewKey.ScheduleMeeting);
+  };
+
+  const handleQuickAddMeeting = async (meetingData: Omit<Meeting, 'id'>) => {
+    if (!supabase) return;
+    
+    const { error } = await supabase
+      .from('Meetings')
+      .insert([meetingToSupabase(meetingData)]);
+
+    if (error) {
+      console.error('Error al añadir reunión rápida:', error.message);
+      alert(`Error al guardar la reunión: ${error.message}`);
+    } else {
+      fetchMeetings();
+    }
+  };
+
+  const handleAddEvent = async (
+    eventData: Omit<Event, 'id'>,
+    selectedOrganizerIds: string[],
+    selectedAttendeesInPersonIds: string[],
+    selectedAttendeesOnlineIds: string[]
+  ) => {
+    if (!supabase) return;
+    
+    const { data: newEvent, error: eventError } = await supabase
+      .from('Events')
+      .insert([eventToSupabase(eventData)])
+      .select('id')
+      .single();
+
+    if (eventError) {
+      console.error('Error al añadir evento:', eventError.message);
+      return;
+    }
+
+    if (newEvent) {
+      if (selectedOrganizerIds.length > 0) {
+        if (eventData.organizerType === 'meeting_category') {
+          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id, commission_id: id }));
+          await supabase.from('event_organizing_commissions').insert(links);
+        } else {
+          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id, category_id: id }));
+          await supabase.from('event_organizing_categories').insert(links);
+        }
+      }
+
+      const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
+      selectedAttendeesInPersonIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'in_person' }));
+      selectedAttendeesOnlineIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'online' }));
+      
+      if (attendeesToInsert.length > 0) {
+        const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: newEvent.id }));
+        await supabase.from('event_attendees').insert(finalAttendees);
+      }
+    }
+    fetchEvents();
+    fetchEventAttendees();
+    fetchEventOrganizingMeetingCategories();
+    fetchEventOrganizingCategories();
+    setEventToEdit(null);
+  };
+  
+  const handleUpdateEvent = async (
+    eventId: string,
+    eventData: Omit<Event, 'id'>,
+    selectedOrganizerIds: string[],
+    selectedAttendeesInPersonIds: string[],
+    selectedAttendeesOnlineIds: string[]
+  ) => {
+    if (!supabase) return;
+
+    await supabase.from('Events').update(eventToSupabaseForUpdate(eventData)).eq('id', eventId);
+    await supabase.from('event_organizing_commissions').delete().eq('event_id', eventId);
+    await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
+
+    if (selectedOrganizerIds.length > 0) {
+        if (eventData.organizerType === 'meeting_category') {
+            const links = selectedOrganizerIds.map(id => ({ event_id: eventId, commission_id: id }));
+            await supabase.from('event_organizing_commissions').insert(links);
+        } else {
+            const links = selectedOrganizerIds.map(id => ({ event_id: eventId, category_id: id }));
+            await supabase.from('event_organizing_categories').insert(links);
+        }
+    }
+
+    await supabase.from('event_attendees').delete().eq('event_id', eventId);
+    
+    const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
+    selectedAttendeesInPersonIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'in_person' }));
+    selectedAttendeesOnlineIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'online' }));
+    
+    if (attendeesToInsert.length > 0) {
+      const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: eventId }));
+      await supabase.from('event_attendees').insert(finalAttendees);
+    }
+    
+    fetchEvents();
+    fetchEventAttendees();
+    fetchEventOrganizingMeetingCategories();
+    fetchEventOrganizingCategories();
+    setEventToEdit(null);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!supabase) return;
+    await supabase.from('event_attendees').delete().eq('event_id', eventId);
+    await supabase.from('event_organizing_commissions').delete().eq('event_id', eventId);
+    await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
+    
+    const { error } = await supabase.from('Events').delete().eq('id', eventId);
+    if (error) console.error('Error al eliminar evento:', error.message);
+    else {
+      fetchEvents();
+    }
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEventToEdit(event);
+    navigate(ViewKey.ManageEvents);
+  };
+  
+  const handleQuickAddEvent = async (eventData: Omit<Event, 'id'>, organizerId: string) => {
+    if (!supabase) return;
+
+    const { data: newEvent, error: eventError } = await supabase
+      .from('Events')
+      .insert([eventToSupabase(eventData)])
+      .select('id')
+      .single();
+
+    if (eventError) {
+      console.error('Error al añadir evento rápido:', eventError.message);
+      alert(`Error al guardar el evento: ${eventError.message}`);
+      return;
+    }
+    
+    if (newEvent) {
+      if (eventData.organizerType === 'meeting_category') {
+        const { error } = await supabase.from('event_organizing_commissions').insert([{ event_id: newEvent.id, commission_id: organizerId }]);
+        if (error) console.error('Error al enlazar categoría de reunión con evento:', error.message);
+        else fetchEventOrganizingMeetingCategories();
+      } else { 
+        const { error } = await supabase.from('event_organizing_categories').insert([{ event_id: newEvent.id, category_id: organizerId }]);
+        if (error) console.error('Error al enlazar categoría de evento con evento:', error.message);
+        else fetchEventOrganizingCategories();
+      }
+    }
+    fetchEvents();
+  };
+
+  const handleAddCompany = async (companyData: Omit<Company, 'id'>) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('Companies').insert([companyToSupabase(companyData)]);
+    if (error) console.error('Error al añadir empresa:', error.message);
+    else fetchCompanies();
+  };
+
+  const handleUpdateCompany = async (company: Company) => {
+    if (!supabase) return;
+    const { id, ...companyData } = company;
+    const { error } = await supabase.from('Companies').update(companyToSupabaseForUpdate(companyData)).eq('id', id);
+    if (error) console.error('Error al actualizar empresa:', error.message);
+    else fetchCompanies();
+  };
+
+  const handleDeleteCompany = async (companyId: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('Companies').delete().eq('id', companyId);
+    if (error) console.error('Error al eliminar empresa:', error.message);
+    else fetchCompanies();
+  };
+
+  const handleAddMeetingCategory = async (category: MeetingCategory) => {
+    if (!supabase) return;
+    const insertData: Database['public']['Tables']['Commissions']['Insert'] = { id: category.id, name: category.name };
+    const { error } = await supabase.from('Commissions').insert([insertData]);
+    if (error) console.error('Error al añadir categoría de reunión:', error.message);
+    else fetchMeetingCategories();
+  };
+  
+  const handleUpdateMeetingCategory = async (category: MeetingCategory) => {
+    if (!supabase) return;
+    const { id, ...categoryData } = category;
+    const updateData: Database['public']['Tables']['Commissions']['Update'] = categoryData;
+    const { error } = await supabase.from('Commissions').update(updateData).eq('id', id);
+    if (error) console.error('Error al actualizar categoría de reunión:', error.message);
+    else fetchMeetingCategories();
+  };
+  
+  const handleDeleteMeetingCategory = async (categoryId: string): Promise<boolean> => {
+    if (!supabase) return false;
+    
+    const { count: meetingsCount } = await supabase.from('Meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
+    const { count: eventsCount } = await supabase.from('event_organizing_commissions').select('event_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
+    const { count: participantsCount } = await supabase.from('participant_commissions').select('participant_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
+
+    if ((meetingsCount ?? 0 > 0) || (eventsCount ?? 0 > 0) || (participantsCount ?? 0 > 0)) {
+        alert("No se puede eliminar la categoría de reunión porque está en uso por reuniones, eventos o participantes.");
+        return false;
+    }
+
+    const { error } = await supabase.from('Commissions').delete().eq('id', categoryId);
+    if (error) {
+      console.error('Error al eliminar categoría de reunión:', error.message);
+      alert(`Error: ${error.message}`);
+      return false;
+    }
+    fetchMeetingCategories();
+    return true;
+  };
+
+  const handleAddEventCategory = async (category: EventCategory) => {
+    if (!supabase) return;
+    const insertData: Database['public']['Tables']['EventCategories']['Insert'] = { id: category.id, name: category.name };
+    const { error } = await supabase.from('EventCategories').insert([insertData]);
+    if (error) console.error('Error al añadir categoría de evento:', error.message);
+    else fetchEventCategories();
+  };
+
+  const handleUpdateEventCategory = async (category: EventCategory) => {
+    if (!supabase) return;
+    const { id, ...categoryData } = category;
+    const updateData: Database['public']['Tables']['EventCategories']['Update'] = categoryData;
+    const { error } = await supabase.from('EventCategories').update(updateData).eq('id', id);
+    if (error) console.error('Error al actualizar categoría de evento:', error.message);
+    else fetchEventCategories();
+  };
+
+  const handleDeleteEventCategory = async (categoryId: string): Promise<boolean> => {
+    if (!supabase) return false;
+    
+    const { count } = await supabase.from('event_organizing_categories').select('event_id', { count: 'exact', head: true }).eq('category_id', categoryId);
+
+    if (count ?? 0 > 0) {
+        alert("No se puede eliminar la categoría porque está siendo utilizada por uno o más eventos.");
+        return false;
+    }
+
+    const { error } = await supabase.from('EventCategories').delete().eq('id', categoryId);
+    if (error) {
+      console.error('Error al eliminar categoría de evento:', error.message);
+      alert(`Error: ${error.message}`);
+      return false;
+    }
+    fetchEventCategories();
+    return true;
+  };
+
+  const clearEditingMeeting = () => setMeetingToEdit(null);
+  const clearEditingEvent = () => setEventToEdit(null);
+
+  const renderContent = () => {
+    switch (activeView) {
+      case ViewKey.MainMenuView:
+        return <MainMenuView onNavigate={navigate} currentTheme={theme} toggleTheme={toggleTheme} />;
+      case ViewKey.ScheduleMeeting:
+        return <ScheduleMeetingView 
+          meetings={meetings} 
+          participants={participants} 
+          meetingCategories={meetingCategories} 
+          meetingAttendees={meetingAttendees}
+          participantMeetingCategories={participantMeetingCategories}
+          onAddMeeting={handleAddMeeting} 
+          onUpdateMeeting={handleUpdateMeeting} 
+          onDeleteMeeting={handleDeleteMeeting}
+          initialMeetingToEdit={meetingToEdit}
+          onClearEditingMeeting={clearEditingMeeting}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.Participants:
+        return <ParticipantsView
+          participants={participants}
+          companies={companies}
+          meetingCategories={meetingCategories}
+          meetings={meetings}
+          participantMeetingCategories={participantMeetingCategories}
+          meetingAttendees={meetingAttendees}
+          onAddParticipant={handleAddParticipant}
+          onUpdateParticipant={handleUpdateParticipant}
+          onDeleteParticipant={handleDeleteParticipant}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.Companies:
+        return <CompaniesView 
+          companies={companies} 
+          participants={participants}
+          onAddCompany={handleAddCompany} 
+          onUpdateCompany={handleUpdateCompany} 
+          onDeleteCompany={handleDeleteCompany}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.Agenda:
+        return <AgendaView
+          meetings={meetings}
+          participants={participants}
+          meetingCategories={meetingCategories}
+          events={events}
+          eventCategories={eventCategories}
+          meetingAttendees={meetingAttendees}
+          eventAttendees={eventAttendees}
+          eventOrganizingMeetingCategories={eventOrganizingMeetingCategories}
+          eventOrganizingCategories={eventOrganizingCategories}
+          onEditMeeting={handleEditMeeting}
+          onEditEvent={handleEditEvent}
+          onQuickAddMeeting={handleQuickAddMeeting}
+          onQuickAddEvent={handleQuickAddEvent}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.ManageMeetingCategories:
+        return <ManageMeetingCategoriesView 
+          meetingCategories={meetingCategories}
+          meetings={meetings}
+          participants={participants}
+          events={events}
+          participantMeetingCategories={participantMeetingCategories}
+          eventOrganizingMeetingCategories={eventOrganizingMeetingCategories}
+          onAddMeetingCategory={handleAddMeetingCategory}
+          onUpdateMeetingCategory={handleUpdateMeetingCategory}
+          onDeleteMeetingCategory={handleDeleteMeetingCategory}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.ManageEvents:
+        return <ManageEventsView
+          events={events}
+          participants={participants}
+          meetingCategories={meetingCategories}
+          eventCategories={eventCategories}
+          eventAttendees={eventAttendees}
+          eventOrganizingMeetingCategories={eventOrganizingMeetingCategories}
+          eventOrganizingCategories={eventOrganizingCategories}
+          onAddEvent={handleAddEvent}
+          onUpdateEvent={handleUpdateEvent}
+          onDeleteEvent={handleDeleteEvent}
+          initialEventToEdit={eventToEdit}
+          onClearEditingEvent={clearEditingEvent}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.ManageEventCategories:
+        return <ManageEventCategoriesView
+          eventCategories={eventCategories}
+          events={events}
+          eventOrganizingCategories={eventOrganizingCategories}
+          onAddEventCategory={handleAddEventCategory}
+          onUpdateEventCategory={handleUpdateEventCategory}
+          onDeleteEventCategory={handleDeleteEventCategory}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-screen">
+            <h2 className="text-2xl font-bold mb-4">Vista no encontrada</h2>
+            <Button onClick={() => navigate(ViewKey.MainMenuView)}>Volver al Menú Principal</Button>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="bg-gray-100 dark:bg-slate-900 min-h-screen">
+      <main>
+        {renderContent()}
+      </main>
+    </div>
+  );
+};
+
+export default App;
