@@ -1,4 +1,6 @@
 
+// App.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ViewKey, Meeting, Participant, Company, MeetingCategory, Event, EventCategory,
@@ -6,16 +8,14 @@ import {
 } from './types';
 import { GALLERY_MENU_ITEMS } from './constants';
 import Button from './components/ui/Button';
-import { 
-  supabase, 
-  participantToSupabase, 
-  meetingToSupabase, 
-  eventToSupabase, 
-  companyToSupabase, 
-  participantToSupabaseForUpdate, 
-  meetingToSupabaseForUpdate, 
-  eventToSupabaseForUpdate, 
-  companyToSupabaseForUpdate,
+import {
+  supabase,
+  participantToSupabase,
+  meetingToSupabase,
+  eventToSupabase,
+  participantToSupabaseForUpdate,
+  meetingToSupabaseForUpdate,
+  eventToSupabaseForUpdate,
   participantFromSupabase,
   meetingFromSupabase,
   eventFromSupabase,
@@ -38,7 +38,10 @@ const App = (): JSX.Element => {
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
+  // SE ELIMINA el estado para todas las empresas
+  // const [companies, setCompanies] = useState<Company[]>([]);
+  // NUEVO ESTADO solo para empresas afiliadas
+  const [affiliatedCompanies, setAffiliatedCompanies] = useState<Company[]>([]);
   const [meetingCategories, setMeetingCategories] = useState<MeetingCategory[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
@@ -81,12 +84,49 @@ const App = (): JSX.Element => {
     else setMeetingCategories(data || []);
   }, []);
 
+  // SE ELIMINA la función para cargar todas las empresas
+  /*
   const fetchCompanies = useCallback(async () => {
-    if (!supabase) return;
-    const { data, error } = await supabase.from('Companies').select('*');
-    if (error) console.error('Error al obtener empresas:', error.message, error);
-    else setCompanies(data || []);
+    // ...
   }, []);
+  */
+
+  // NUEVA FUNCIÓN para cargar solo las empresas afiliadas
+  const fetchAffiliatedCompanies = useCallback(async () => {
+    if (!supabase) return;
+    const RIF_GREMIO = "J075109112";
+
+    // 1. Obtener los IDs de los establecimientos afiliados
+    const { data: afiliaciones, error: afiliacionesError } = await supabase
+      .from('afiliaciones_remotos')
+      .select('id_establecimiento')
+      .eq('rif_institucion', RIF_GREMIO);
+
+    if (afiliacionesError) {
+      console.error('Error al obtener afiliaciones:', afiliacionesError.message);
+      return;
+    }
+
+    const establecimientosIds = afiliaciones.map(a => a.id_establecimiento);
+
+    if (establecimientosIds.length === 0) {
+      setAffiliatedCompanies([]);
+      return;
+    }
+
+    // 2. Obtener los detalles de esos establecimientos
+    const { data: companiesData, error: companiesError } = await supabase
+      .from('establecimientos_remotos')
+      .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1')
+      .in('id_establecimiento', establecimientosIds);
+
+    if (companiesError) {
+      console.error('Error al obtener empresas afiliadas:', companiesError.message);
+    } else {
+      setAffiliatedCompanies(companiesData || []);
+    }
+  }, []);
+
 
   const fetchParticipants = useCallback(async () => {
     if (!supabase) return;
@@ -135,7 +175,7 @@ const App = (): JSX.Element => {
     if (eocaError) console.error('Error fetching event_organizing_categories:', eocaError.message);
 
     const processedEvents = rawEventsData.map(dbEvent => {
-        const baseEvent = eventFromSupabase(dbEvent); 
+        const baseEvent = eventFromSupabase(dbEvent);
         let determinedOrganizerType: 'meeting_category' | 'category' = 'meeting_category';
 
         if (eocData?.some(link => link.event_id === baseEvent.id)) {
@@ -143,13 +183,13 @@ const App = (): JSX.Element => {
         } else if (eocaData?.some(link => link.event_id === baseEvent.id)) {
             determinedOrganizerType = 'category';
         } else {
-            console.warn(`Event ${baseEvent.id} ('${baseEvent.subject}') has no organizer links in join tables. Defaulting organizerType to 'meeting_category'.`);
+            console.warn(`Event ${baseEvent.id} ('${baseEvent.subject}') has no organizer links. Defaulting to 'meeting_category'.`);
         }
-        
+
         return { ...baseEvent, organizerType: determinedOrganizerType } as Event;
     });
     setEvents(processedEvents);
-}, []);
+  }, []);
 
 
   const fetchParticipantMeetingCategories = useCallback(async () => {
@@ -197,19 +237,20 @@ const App = (): JSX.Element => {
   useEffect(() => {
     if (supabase) {
       fetchMeetingCategories();
-      fetchCompanies();
+      // fetchCompanies(); // SE ELIMINA ESTA LLAMADA
+      fetchAffiliatedCompanies(); // SE AÑADE LA NUEVA LLAMADA
       fetchParticipants();
       fetchMeetings();
       fetchEventCategories();
-      fetchEvents(); 
+      fetchEvents();
       fetchParticipantMeetingCategories();
       fetchMeetingAttendees();
       fetchEventAttendees();
-      fetchEventOrganizingMeetingCategories(); 
-      fetchEventOrganizingCategories(); 
+      fetchEventOrganizingMeetingCategories();
+      fetchEventOrganizingCategories();
     }
   }, [
-      fetchMeetingCategories, fetchCompanies, fetchParticipants, fetchMeetings,
+      fetchMeetingCategories, fetchAffiliatedCompanies, fetchParticipants, fetchMeetings,
       fetchEventCategories, fetchEvents, fetchParticipantMeetingCategories,
       fetchMeetingAttendees, fetchEventAttendees, fetchEventOrganizingMeetingCategories,
       fetchEventOrganizingCategories
@@ -227,7 +268,7 @@ const App = (): JSX.Element => {
     items.forEach(item => {
       if (item.id && typeof item.id === 'string' && item.id.startsWith(prefix)) {
         const numStr = item.id.substring(prefix.length);
-        if (/^\d+$/.test(numStr)) { 
+        if (/^\d+$/.test(numStr)) {
           const num = parseInt(numStr, 10);
           if (num > maxNum) {
             maxNum = num;
@@ -251,7 +292,7 @@ const App = (): JSX.Element => {
 
     const { data: newParticipantEntry, error: participantError } = await supabase
       .from('Participants')
-      .insert([participantToSupabase(participantWithId)])
+      .insert([participantToSupabase(participantWithId)]) // Ya usa la nueva estructura
       .select('id')
       .single();
 
@@ -279,7 +320,7 @@ const App = (): JSX.Element => {
     if (!supabase) return;
     const { error: participantError } = await supabase
       .from('Participants')
-      .update(participantToSupabaseForUpdate(participantData))
+      .update(participantToSupabaseForUpdate(participantData)) // Ya usa la nueva estructura
       .eq('id', participantId);
 
     if (participantError) {
@@ -313,12 +354,19 @@ const App = (): JSX.Element => {
     else {
       fetchParticipants();
       fetchParticipantMeetingCategories();
-      fetchMeetingAttendees(); 
-      fetchEventAttendees();   
+      fetchMeetingAttendees();
+      fetchEventAttendees();
     }
   };
 
+  // SE ELIMINAN los manejadores para Company
+  /*
+  const handleAddCompany = ...
+  const handleUpdateCompany = ...
+  const handleDeleteCompany = ...
+  */
 
+  // El resto de manejadores (Meeting, Event, etc.) se mantienen igual
   const handleAddMeeting = async (
     meetingData: Omit<Meeting, 'id'>,
     selectedAttendeesInPersonIds: string[],
@@ -388,7 +436,7 @@ const App = (): JSX.Element => {
   const handleDeleteMeeting = async (meetingId: string) => {
     if (!supabase) return;
     await supabase.from('meeting_attendees').delete().eq('meeting_id', meetingId);
-    
+
     const { error } = await supabase.from('Meetings').delete().eq('id', meetingId);
     if (error) console.error('Error al eliminar reunión:', error.message);
     else {
@@ -404,7 +452,7 @@ const App = (): JSX.Element => {
 
   const handleQuickAddMeeting = async (meetingData: Omit<Meeting, 'id'>) => {
     if (!supabase) return;
-    
+
     const { error } = await supabase
       .from('Meetings')
       .insert([meetingToSupabase(meetingData)]);
@@ -424,7 +472,7 @@ const App = (): JSX.Element => {
     selectedAttendeesOnlineIds: string[]
   ) => {
     if (!supabase) return;
-    
+
     const { data: newEvent, error: eventError } = await supabase
       .from('Events')
       .insert([eventToSupabase(eventData)])
@@ -450,7 +498,7 @@ const App = (): JSX.Element => {
       const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
       selectedAttendeesInPersonIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'in_person' }));
       selectedAttendeesOnlineIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'online' }));
-      
+
       if (attendeesToInsert.length > 0) {
         const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: newEvent.id }));
         await supabase.from('event_attendees').insert(finalAttendees);
@@ -462,7 +510,7 @@ const App = (): JSX.Element => {
     fetchEventOrganizingCategories();
     setEventToEdit(null);
   };
-  
+
   const handleUpdateEvent = async (
     eventId: string,
     eventData: Omit<Event, 'id'>,
@@ -487,16 +535,16 @@ const App = (): JSX.Element => {
     }
 
     await supabase.from('event_attendees').delete().eq('event_id', eventId);
-    
+
     const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
     selectedAttendeesInPersonIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'in_person' }));
     selectedAttendeesOnlineIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'online' }));
-    
+
     if (attendeesToInsert.length > 0) {
       const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: eventId }));
       await supabase.from('event_attendees').insert(finalAttendees);
     }
-    
+
     fetchEvents();
     fetchEventAttendees();
     fetchEventOrganizingMeetingCategories();
@@ -509,7 +557,7 @@ const App = (): JSX.Element => {
     await supabase.from('event_attendees').delete().eq('event_id', eventId);
     await supabase.from('event_organizing_commissions').delete().eq('event_id', eventId);
     await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
-    
+
     const { error } = await supabase.from('Events').delete().eq('id', eventId);
     if (error) console.error('Error al eliminar evento:', error.message);
     else {
@@ -521,7 +569,7 @@ const App = (): JSX.Element => {
     setEventToEdit(event);
     navigate(ViewKey.ManageEvents);
   };
-  
+
   const handleQuickAddEvent = async (eventData: Omit<Event, 'id'>, organizerId: string) => {
     if (!supabase) return;
 
@@ -536,41 +584,19 @@ const App = (): JSX.Element => {
       alert(`Error al guardar el evento: ${eventError.message}`);
       return;
     }
-    
+
     if (newEvent) {
       if (eventData.organizerType === 'meeting_category') {
         const { error } = await supabase.from('event_organizing_commissions').insert([{ event_id: newEvent.id, commission_id: organizerId }]);
         if (error) console.error('Error al enlazar categoría de reunión con evento:', error.message);
         else fetchEventOrganizingMeetingCategories();
-      } else { 
+      } else {
         const { error } = await supabase.from('event_organizing_categories').insert([{ event_id: newEvent.id, category_id: organizerId }]);
         if (error) console.error('Error al enlazar categoría de evento con evento:', error.message);
         else fetchEventOrganizingCategories();
       }
     }
     fetchEvents();
-  };
-
-  const handleAddCompany = async (companyData: Omit<Company, 'id'>) => {
-    if (!supabase) return;
-    const { error } = await supabase.from('Companies').insert([companyToSupabase(companyData)]);
-    if (error) console.error('Error al añadir empresa:', error.message);
-    else fetchCompanies();
-  };
-
-  const handleUpdateCompany = async (company: Company) => {
-    if (!supabase) return;
-    const { id, ...companyData } = company;
-    const { error } = await supabase.from('Companies').update(companyToSupabaseForUpdate(companyData)).eq('id', id);
-    if (error) console.error('Error al actualizar empresa:', error.message);
-    else fetchCompanies();
-  };
-
-  const handleDeleteCompany = async (companyId: string) => {
-    if (!supabase) return;
-    const { error } = await supabase.from('Companies').delete().eq('id', companyId);
-    if (error) console.error('Error al eliminar empresa:', error.message);
-    else fetchCompanies();
   };
 
   const handleAddMeetingCategory = async (category: MeetingCategory) => {
@@ -580,7 +606,7 @@ const App = (): JSX.Element => {
     if (error) console.error('Error al añadir categoría de reunión:', error.message);
     else fetchMeetingCategories();
   };
-  
+
   const handleUpdateMeetingCategory = async (category: MeetingCategory) => {
     if (!supabase) return;
     const { id, ...categoryData } = category;
@@ -589,10 +615,10 @@ const App = (): JSX.Element => {
     if (error) console.error('Error al actualizar categoría de reunión:', error.message);
     else fetchMeetingCategories();
   };
-  
+
   const handleDeleteMeetingCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
-    
+
     const { count: meetingsCount } = await supabase.from('Meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
     const { count: eventsCount } = await supabase.from('event_organizing_commissions').select('event_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
     const { count: participantsCount } = await supabase.from('participant_commissions').select('participant_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
@@ -631,7 +657,7 @@ const App = (): JSX.Element => {
 
   const handleDeleteEventCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
-    
+
     const { count } = await supabase.from('event_organizing_categories').select('event_id', { count: 'exact', head: true }).eq('category_id', categoryId);
 
     if (count ?? 0 > 0) {
@@ -657,14 +683,14 @@ const App = (): JSX.Element => {
       case ViewKey.MainMenuView:
         return <MainMenuView onNavigate={navigate} currentTheme={theme} toggleTheme={toggleTheme} />;
       case ViewKey.ScheduleMeeting:
-        return <ScheduleMeetingView 
-          meetings={meetings} 
-          participants={participants} 
-          meetingCategories={meetingCategories} 
+        return <ScheduleMeetingView
+          meetings={meetings}
+          participants={participants}
+          meetingCategories={meetingCategories}
           meetingAttendees={meetingAttendees}
           participantMeetingCategories={participantMeetingCategories}
-          onAddMeeting={handleAddMeeting} 
-          onUpdateMeeting={handleUpdateMeeting} 
+          onAddMeeting={handleAddMeeting}
+          onUpdateMeeting={handleUpdateMeeting}
           onDeleteMeeting={handleDeleteMeeting}
           initialMeetingToEdit={meetingToEdit}
           onClearEditingMeeting={clearEditingMeeting}
@@ -673,7 +699,7 @@ const App = (): JSX.Element => {
       case ViewKey.Participants:
         return <ParticipantsView
           participants={participants}
-          companies={companies}
+          // companies={companies} // SE ELIMINA ESTE PROP
           meetingCategories={meetingCategories}
           meetings={meetings}
           participantMeetingCategories={participantMeetingCategories}
@@ -684,12 +710,13 @@ const App = (): JSX.Element => {
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
       case ViewKey.Companies:
-        return <CompaniesView 
-          companies={companies} 
+        return <CompaniesView
+          // companies={companies} // SE CAMBIA EL PROP
+          affiliatedCompanies={affiliatedCompanies}
           participants={participants}
-          onAddCompany={handleAddCompany} 
-          onUpdateCompany={handleUpdateCompany} 
-          onDeleteCompany={handleDeleteCompany}
+          // onAddCompany={handleAddCompany} // SE ELIMINAN LOS PROPS DE ESCRITURA
+          // onUpdateCompany={handleUpdateCompany}
+          // onDeleteCompany={handleDeleteCompany}
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
       case ViewKey.Agenda:
@@ -710,7 +737,7 @@ const App = (): JSX.Element => {
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
       case ViewKey.ManageMeetingCategories:
-        return <ManageMeetingCategoriesView 
+        return <ManageMeetingCategoriesView
           meetingCategories={meetingCategories}
           meetings={meetings}
           participants={participants}

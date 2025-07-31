@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export enum ViewKey {
@@ -25,23 +24,24 @@ export interface MeetingCategory {
   name: string;
 }
 
+// Interfaz 'Company' MODIFICADA para reflejar la tabla remota de establecimientos
 export interface Company {
-  id: string;
-  name: string;
-  rif: string;
-  email: string;
-  phone: string;
-  address: string;
+  id_establecimiento: string;
+  nombre_establecimiento: string;
+  rif_compania: string;
+  email_principal: string | null;
+  telefono_principal_1: string | null;
+  // Puedes añadir más campos de 'establecimientos_remotos' si los necesitas
 }
 
-export type ParticipantAffiliationType = 'company' | 'external' | 'independent';
+// SE ELIMINA este tipo, ya no se usará
+// export type ParticipantAffiliationType = 'company' | 'external' | 'independent';
 
+// Interfaz 'Participant' MODIFICADA para la nueva estructura
 export interface Participant {
   id: string;
   name: string;
-  affiliationType: ParticipantAffiliationType;
-  companyId?: string | null;
-  externalCompanyName?: string | null;
+  id_establecimiento?: string | null; // El nuevo y único campo de relación
   role: string | null;
   email: string | null;
   phone?: string | null;
@@ -67,7 +67,7 @@ export interface EventCategory {
 export interface Event {
   id: string;
   subject: string;
-  organizerType: 'meeting_category' | 'category'; 
+  organizerType: 'meeting_category' | 'category';
   date: string;
   startTime: string;
   endTime?: string;
@@ -79,7 +79,7 @@ export interface Event {
   revenue?: number;
 }
 
-// New types for join tables
+// Tipos para las tablas de unión (se mantienen igual)
 export interface ParticipantMeetingCategory {
   participant_id: string;
   meeting_category_id: string;
@@ -104,11 +104,10 @@ export interface EventOrganizingMeetingCategory {
 
 export interface EventOrganizingCategory {
   event_id: string;
-  category_id: string; 
+  category_id: string;
 }
 
-
-// Props for UI components
+// Props para componentes de UI (se mantienen igual)
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
