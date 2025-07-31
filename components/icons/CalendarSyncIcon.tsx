@@ -21,3 +21,4 @@ export const CalendarSyncIcon = ({ className = 'w-6 h-6' }: { className?: string
     <path d="M17 22a3 3 0 0 1 5.65-1.42l1.07 1.92" />
   </svg>
 );
+export default CalendarSyncIcon;

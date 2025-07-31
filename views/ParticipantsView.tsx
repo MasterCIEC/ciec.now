@@ -7,7 +7,10 @@ import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
-import { PlusIcon, EditIcon, TrashIcon } from '../components/icons';
+// Importación individual y directa de cada icono
+import PlusIcon from '../components/icons/PlusIcon';
+import EditIcon from '../components/icons/EditIcon';
+import TrashIcon from '../components/icons/TrashIcon';
 
 interface ParticipantsViewProps {
   participants: Participant[];
@@ -69,6 +72,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
 
       if (participantToViewOrEdit.id_establecimiento) {
         const fetchEstName = async () => {
+          if (!supabase) return;
           const { data } = await supabase.from('establecimientos_remotos').select('nombre_establecimiento').eq('id_establecimiento', participantToViewOrEdit.id_establecimiento!).single();
           if (data) {
             setSearchTermEst(data.nombre_establecimiento);
@@ -106,7 +110,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
 
   const handleSearchEstablecimiento = useCallback(async (term: string) => {
     setSearchTermEst(term);
-    if (term.length < 3) {
+    if (term.length < 3 || !supabase) {
       setEstablecimientoSugeridos([]);
       return;
     }
@@ -178,7 +182,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   };
 
   const handleDelete = (e: React.MouseEvent, participant: Participant) => {
-    e.stopPropagation(); // Evita que se dispare el onClick de la fila
+    e.stopPropagation();
     if (window.confirm(`¿Está seguro de que desea eliminar al participante: "${participant.name}"?`)) {
       onDeleteParticipant(participant.id);
       setIsModalOpen(false);
@@ -186,6 +190,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   };
 
   const getParticipantAffiliationDetails = useCallback(async (participant: Participant): Promise<string> => {
+    if (!supabase) return 'Error de conexión';
     const cacheKey = participant.id_establecimiento || 'independent';
     if (affiliationDetailsCache.has(cacheKey)) {
       return affiliationDetailsCache.get(cacheKey)!;
@@ -241,7 +246,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
           label="Empresa / Establecimiento (Opcional)"
           name="establecimiento"
           value={searchTermEst}
-          onChange={(e) => handleSearchEstablecimiento(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchEstablecimiento(e.target.value)}
           placeholder="Escriba para buscar..."
         />
         {formData.id_establecimiento && (
@@ -314,7 +319,12 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
                 {onNavigateBack && (<Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button>)}
             </div>
         </div>
-        <Input placeholder="Buscar participantes por nombre o correo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mb-4" />
+        <Input 
+          placeholder="Buscar participantes por nombre o correo..." 
+          value={searchTerm} 
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)} 
+          className="mb-4" 
+        />
         
         <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

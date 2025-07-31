@@ -1,23 +1,25 @@
-
-
+// views/AgendaView.tsx
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, Event, EventCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
-import Card from '../components/ui/Card';
+import { Card } from '../components/ui/Card'; // Importación Corregida
 import Button from '../components/ui/Button';
 import Modal from '../components/Modal';
-import EditIcon from '../components/icons/EditIcon';
 import Select from '../components/ui/Select';
-import ScheduleIcon from '../components/icons/ScheduleIcon';
-import EventsIcon from '../components/icons/EventsIcon';
 import Input from '../components/ui/Input';
 import AddToGoogleCalendar from '../components/AddToGoogleCalendar';
-import { CalendarSyncIcon } from '../components/icons/CalendarSyncIcon';
+
+// Importaciones de iconos corregidas (directas)
+import EditIcon from '../components/icons/EditIcon';
+import ScheduleIcon from '../components/icons/ScheduleIcon';
+import EventsIcon from '../components/icons/EventsIcon';
+import CalendarSyncIcon from '../components/icons/CalendarSyncIcon';
 import CopyIcon from '../components/icons/CopyIcon';
 import CheckIcon from '../components/icons/CheckIcon';
 import GoogleCalendarIcon from '../components/icons/GoogleCalendarIcon';
 import ExternalLinkIcon from '../components/icons/ExternalLinkIcon';
-
+import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
+import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 
 type CalendarViewMode = 'month' | 'year' | 'week' | 'day';
 
@@ -341,7 +343,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
               onContextMenu={(e) => handleDayContextMenu(e, dayDate)}
             >
                 <div className="flex justify-between items-center mb-1">
-                     <span className={`text-sm font-semibold cursor-pointer hover:underline ${isToday ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}`} onClick={() => handleDayCellClick(dayDate)} role="button">
+                    <span className={`text-sm font-semibold cursor-pointer hover:underline ${isToday ? 'text-primary-700 dark:text-primary-300' : 'text-gray-700 dark:text-gray-300'}`} onClick={() => handleDayCellClick(dayDate)} role="button">
                         {daysOfWeek[dayDate.getDay()]} {dayDate.getDate()}
                     </span>
                 </div>
@@ -408,36 +410,36 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                 };
 
                 return (
-                <Card key={item.id} className="bg-white dark:bg-gray-700/80 hover:shadow-lg transition-shadow">
-                  <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {item.startTime || 'N/A'} {item.endTime ? `- ${item.endTime}` : '(Hora de fin no definida)'}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
-                  {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
-                  
-                  {(inPersonNames || onlineNames) && (
-                    <div className="mt-2 pt-2 border-t dark:border-gray-600">
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Participantes Registrados</h4>
-                      {inPersonNames && <p className="text-xs text-gray-600 dark:text-gray-300">Presencial: {inPersonNames}</p>}
-                      {onlineNames && <p className="text-xs text-gray-600 dark:text-gray-300">En línea: {onlineNames}</p>}
-                    </div>
-                  )}
-                  {item.type === 'meeting' && typeof item.externalParticipantsCount === 'number' && item.externalParticipantsCount > 0 && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Externos: {item.externalParticipantsCount}</p>}
-                  {item.type === 'event' && typeof (item as EventAgendaItem).externalParticipantsCount === 'number' && (item as EventAgendaItem).externalParticipantsCount! > 0 && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Externos: {(item as EventAgendaItem).externalParticipantsCount}</p>}
+                <Card key={item.id} className="bg-white dark:bg-gray-700/80 hover:shadow-lg transition-shadow p-4">
+                    <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {item.startTime || 'N/A'} {item.endTime ? `- ${item.endTime}` : '(Hora de fin no definida)'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
+                    {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
+                    
+                    {(inPersonNames || onlineNames) && (
+                      <div className="mt-2 pt-2 border-t dark:border-gray-600">
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Participantes Registrados</h4>
+                        {inPersonNames && <p className="text-xs text-gray-600 dark:text-gray-300">Presencial: {inPersonNames}</p>}
+                        {onlineNames && <p className="text-xs text-gray-600 dark:text-gray-300">En línea: {onlineNames}</p>}
+                      </div>
+                    )}
+                    {item.type === 'meeting' && typeof item.externalParticipantsCount === 'number' && item.externalParticipantsCount > 0 && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Externos: {item.externalParticipantsCount}</p>}
+                    {item.type === 'event' && typeof (item as EventAgendaItem).externalParticipantsCount === 'number' && (item as EventAgendaItem).externalParticipantsCount! > 0 && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">Externos: {(item as EventAgendaItem).externalParticipantsCount}</p>}
 
-                  {item.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{`"${item.description}"`}</p>}
+                    {item.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">{`"${item.description}"`}</p>}
 
-                  {item.type === 'event' && (typeof (item as EventAgendaItem).cost === 'number' || typeof (item as EventAgendaItem).investment === 'number' || typeof (item as EventAgendaItem).revenue === 'number') && (
-                    <div className="mt-2 pt-2 border-t dark:border-gray-600">
-                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Detalles Financieros</h4>
-                        {typeof (item as EventAgendaItem).cost === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Costo: $ {(item as EventAgendaItem).cost!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                        {typeof (item as EventAgendaItem).investment === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Inversión: $ {(item as EventAgendaItem).investment!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                        {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
-                    </div>
-                  )}
-                  {item.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
-                  <div className="mt-3 flex justify-end"><Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button></div>
+                    {item.type === 'event' && (typeof (item as EventAgendaItem).cost === 'number' || typeof (item as EventAgendaItem).investment === 'number' || typeof (item as EventAgendaItem).revenue === 'number') && (
+                      <div className="mt-2 pt-2 border-t dark:border-gray-600">
+                          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Detalles Financieros</h4>
+                          {typeof (item as EventAgendaItem).cost === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Costo: $ {(item as EventAgendaItem).cost!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                          {typeof (item as EventAgendaItem).investment === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Inversión: $ {(item as EventAgendaItem).investment!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                          {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+                      </div>
+                    )}
+                    {item.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
+                    <div className="mt-3 flex justify-end"><Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button></div>
                 </Card>
-              );
+                );
             })}
         </div>
     );
@@ -541,10 +543,10 @@ const AgendaView: React.FC<AgendaViewProps> = ({
           <div className="flex items-center gap-2">
               <Button onClick={() => handleNavigation('today')} variant="primary" size="md" className="!px-5 !py-2.5 font-bold shadow-lg" aria-label="Ir a hoy">Hoy</Button>
               <Button onClick={() => handleNavigation('prev')} variant="secondary" size="md" className="!p-2.5" aria-label="Anterior">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  <ChevronLeftIcon className="h-5 w-5" />
               </Button>
               <Button onClick={() => handleNavigation('next')} variant="secondary" size="md" className="!p-2.5" aria-label="Siguiente">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                  <ChevronRightIcon className="h-5 w-5" />
               </Button>
               <Button onClick={() => setIsSubscriptionModalOpen(true)} variant="secondary" size="md" className="!p-2.5" aria-label="Suscribirse al calendario">
                   <CalendarSyncIcon className="h-5 w-5" />
@@ -650,7 +652,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
 
 
                 return (
-                <Card key={item.id} className="bg-gray-50 dark:bg-gray-700 hover:shadow-lg transition-shadow">
+                <Card key={item.id} className="bg-gray-50 dark:bg-gray-700 hover:shadow-lg transition-shadow p-4">
                   <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
                   <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {item.startTime || 'N/A'} {item.endTime ? `- ${item.endTime}`: '(Hora de fin no definida)'}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
@@ -679,8 +681,8 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                   {item.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
                   <div className="mt-3 flex justify-end"><Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button></div>
                 </Card>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </Modal>
@@ -726,7 +728,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                 </a>
                 <a href="webcal://" className="w-full block">
                      <Button variant="secondary" size="md" className="w-full">
-                        <ExternalLinkIcon className="w-5 h-5 mr-2" /> Abrir Outlook / Apple
+                         <ExternalLinkIcon className="w-5 h-5 mr-2" /> Abrir Outlook / Apple
                     </Button>
                 </a>
             </div>

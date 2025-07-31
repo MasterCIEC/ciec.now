@@ -1,87 +1,59 @@
+// views/MainMenuView.tsx
 
 import React from 'react';
-import { ViewKey } from '../types';
-import Card from '../components/ui/Card';
+import { MenuItem, ViewKey } from '../types';
 import { GALLERY_MENU_ITEMS } from '../constants';
+// Importación corregida para usar la exportación nombrada de Card
+import { Card } from '../components/ui/Card';
 import ThemeToggleButton, { Theme } from '../components/ThemeToggleButton';
+import AppLogoIcon from '../components/icons/AppLogoIcon';
 
 interface MainMenuViewProps {
-  onNavigate: (viewKey: ViewKey) => void;
+  onNavigate: (view: ViewKey) => void;
   currentTheme: Theme;
   toggleTheme: () => void;
 }
 
-const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
-  <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-6">
-    <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-300">{title}</h2>
-  </div>
-);
-
 const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, toggleTheme }) => {
-  const planningItems = GALLERY_MENU_ITEMS.filter(item => ['agenda'].includes(item.id));
-  const creationItems = GALLERY_MENU_ITEMS.filter(item => ['schedule', 'events'].includes(item.id));
-  const managementItems = GALLERY_MENU_ITEMS.filter(item => ['meetingCategories', 'eventCategories', 'participants', 'companies'].includes(item.id));
-
-  const renderCard = (item: typeof GALLERY_MENU_ITEMS[0]) => (
-      <Card 
-        key={item.id} 
-        className="group relative bg-white dark:bg-slate-800 hover:bg-primary-50 dark:hover:bg-slate-700 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col items-center text-center p-4 sm:p-6"
-        onClick={() => onNavigate(item.viewKey)}
-        role="button"
-        tabIndex={0}
-        aria-label={`Navegar a ${item.name}`}
-      >
-        <item.icon className="w-12 h-12 sm:w-16 sm:h-16 text-primary-700 dark:text-accent mb-4" />
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">{item.name}</h2>
-        
-        {item.description && (
-            <p className="sm:hidden text-xs text-gray-500 dark:text-gray-400 px-2">{item.description}</p>
-        )}
-
-        {item.description && (
-          <div className="hidden sm:flex absolute inset-0 bg-black/75 dark:bg-black/85 flex-col items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg">
-            <p className="text-sm text-white text-center">{item.description}</p>
-          </div>
-        )}
-      </Card>
-  );
-
   return (
-    <div className="p-4 sm:p-8 min-h-screen flex flex-col items-center justify-start relative">
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
-        <ThemeToggleButton currentTheme={currentTheme} toggleTheme={toggleTheme} />
-      </div>
-
-      <div className="text-center mb-12 w-full max-w-6xl">
-        <h1 className="text-4xl sm:text-5xl font-bold text-primary-700 dark:text-accent mb-3">CIEC.Now</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-300">Administración profesional de agendas y actividades de comisiones CIEC.</p>
-      </div>
-      
-      <div className="w-full max-w-6xl flex flex-col gap-12">
-        {/* Section 1: Vista y Planificación */}
-        <section>
-          <SectionHeader title="Vista y Planificación" />
-          <div className="grid grid-cols-1 gap-6">
-            {planningItems.map(renderCard)}
+    <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-gray-800 dark:text-gray-200 p-4 sm:p-6 lg:p-8">
+      <header className="flex justify-between items-center mb-8">
+        <div className="flex items-center space-x-4">
+          <AppLogoIcon className="h-12 w-12 text-primary-600 dark:text-primary-400" />
+          <div>
+            <h1 className="text-3xl font-bold">CIEC NOW</h1>
+            <p className="text-gray-500 dark:text-gray-400">Panel de Gestión de Eventos y Reuniones</p>
           </div>
-        </section>
+        </div>
+        <ThemeToggleButton theme={currentTheme} toggleTheme={toggleTheme} />
+      </header>
 
-        {/* Section 2: Creación y Programación */}
-        <section>
-          <SectionHeader title="Creación y Programación" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {creationItems.map(renderCard)}
-          </div>
-        </section>
-
-        {/* Section 3: Administración de Datos */}
-        <section>
-          <SectionHeader title="Administración de Datos" />
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            {managementItems.map(renderCard)}
-          </div>
-        </section>
-      </div>
+      <main>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {GALLERY_MENU_ITEMS.map((item) => (
+            <Card
+              key={item.id}
+              className="flex flex-col justify-between p-6 transition-transform transform hover:scale-105 hover:shadow-xl cursor-pointer"
+              onClick={() => onNavigate(item.viewKey)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Navegar a ${item.name}`}
+            >
+              <div>
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="bg-primary-100 dark:bg-primary-900/50 p-3 rounded-full">
+                    <item.icon className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold">{item.name}</h2>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                  {item.description}
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </main>
     </div>
   );
 };

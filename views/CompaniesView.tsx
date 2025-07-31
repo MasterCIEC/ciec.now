@@ -5,7 +5,12 @@ import { Company, Participant } from '../types';
 import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { SearchIcon, EmailIcon, PhoneIcon } from '../components/icons';
+// Importación individual y directa de cada icono
+import EyeIcon from '../components/icons/EyeIcon';
+import SearchIcon from '../components/icons/SearchIcon';
+import EmailIcon from '../components/icons/EmailIcon';
+import PhoneIcon from '../components/icons/PhoneIcon';
+// Importación corregida de los componentes de Card
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 
 interface CompaniesViewProps {
@@ -123,6 +128,7 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre del Establecimiento</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RIF</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participantes</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -140,11 +146,23 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                         {company.rif_compania}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCompany(company.id_establecimiento)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <Button
+                          onClick={(e) => { e.stopPropagation(); openViewModal(company); }}
+                          variant="ghost"
+                          size="sm"
+                          className="py-1 px-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-700/30"
+                          aria-label={`Ver detalles de ${company.nombre_establecimiento}`}
+                        >
+                          <EyeIcon className="w-4 h-4 mr-1" />
+                          Ver
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={3} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                    <td colSpan={4} className="text-center py-10 text-gray-500 dark:text-gray-400">
                          {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione una letra para ver las empresas.'}
                     </td>
                   </tr>
