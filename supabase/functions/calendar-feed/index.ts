@@ -3,6 +3,14 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// This declaration helps TypeScript understand the Deno global namespace
+// when running in environments that don't have Deno types loaded by default.
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 // Encabezados CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -109,4 +117,4 @@ serve(async (req) => {
       status: 500,
     })
   }
-}) 
+})

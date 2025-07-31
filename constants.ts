@@ -52,12 +52,12 @@ export const GALLERY_MENU_ITEMS: MenuItem[] = [
     viewKey: ViewKey.Participants,
     description: 'Gestionar la información de los participantes y su asignación a categorías de reuniones.'
   },
-  { // MODIFICADO PARA REFLEJAR EL NUEVO PROPÓSITO
+  {
     id: 'companies',
     name: 'Empresas Afiliadas',
     icon: CompaniesIcon,
     viewKey: ViewKey.Companies,
-    description: 'Consultar el directorio de empresas que forman parte de nuestro gremio.'
+    description: 'Consultar el directorio de empresas afiliadas a la institución.'
   },
 ];
 

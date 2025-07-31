@@ -8,19 +8,17 @@ import Input from '../components/ui/Input';
 // Importación individual y directa de cada icono
 import EyeIcon from '../components/icons/EyeIcon';
 import SearchIcon from '../components/icons/SearchIcon';
-import EmailIcon from '../components/icons/EmailIcon';
-import PhoneIcon from '../components/icons/PhoneIcon';
 // Importación corregida de los componentes de Card
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 
 interface CompaniesViewProps {
-  affiliatedCompanies: Company[];
+  companies: Company[];
   participants: Participant[];
   onNavigateBack?: () => void;
 }
 
 const CompaniesView: React.FC<CompaniesViewProps> = ({
-  affiliatedCompanies,
+  companies,
   participants,
   onNavigateBack,
 }) => {
@@ -34,12 +32,12 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const filteredCompanies = useMemo(() => affiliatedCompanies
+  const filteredCompanies = useMemo(() => companies
     .filter(c =>
       (c.nombre_establecimiento || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (c.rif_compania || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
-    .sort((a,b) => (a.nombre_establecimiento || '').localeCompare(b.nombre_establecimiento || '')), [affiliatedCompanies, searchTerm]);
+    .sort((a,b) => (a.nombre_establecimiento || '').localeCompare(b.nombre_establecimiento || '')), [companies, searchTerm]);
 
   const companiesGroupedByLetter = useMemo(() => {
     const grouped: Record<string, Company[]> = {};
@@ -62,7 +60,7 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
   const letterOrder = useMemo(() => Object.keys(companiesGroupedByLetter), [companiesGroupedByLetter]);
   
   useEffect(() => {
-    if (letterOrder.length > 0 && !selectedLetter) {
+    if (letterOrder.length > 0 && (!selectedLetter || !letterOrder.includes(selectedLetter))) {
         setSelectedLetter(letterOrder[0]);
     } else if (letterOrder.length === 0) {
         setSelectedLetter(null);
@@ -99,79 +97,139 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
             )}
         </div>
       </div>
-      <Card className="flex-grow">
-        <CardHeader>
-          <CardTitle>Directorio de Empresas Afiliadas</CardTitle>
-          <CardDescription>
-            Consulta la información de contacto de las empresas que forman parte de nuestro gremio.
-          </CardDescription>
-          <div className="mt-4">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                <SearchIcon className="h-5 w-5 text-gray-400" />
-              </span>
-              <Input
-                type="text"
-                placeholder="Buscar por nombre o RIF..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full md:w-1/3"
-              />
+      
+      <div className="flex flex-grow gap-6">
+        {/* Sidebar */}
+        <aside className="w-64 flex-shrink-0 hidden md:block">
+            <div className="sticky top-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Índice Alfabético</h3>
+                <nav>
+                    <ul className="space-y-1 max-h-[70vh] overflow-y-auto">
+                        {letterOrder.length > 0 ? (
+                          letterOrder.map(letter => (
+                            <li key={letter}>
+                              <button
+                                onClick={() => setSelectedLetter(letter)}
+                                className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex justify-between items-center ${
+                                  selectedLetter === letter
+                                    ? 'bg-primary-600 text-white'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                <span>Letra {letter}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${ selectedLetter === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600'}`}>
+                                  {companiesGroupedByLetter[letter].length}
+                                </span>
+                              </button>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="px-3 py-2 text-sm text-gray-500">
+                            No hay empresas para mostrar.
+                          </li>
+                        )}
+                    </ul>
+                </nav>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre del Establecimiento</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RIF</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participantes</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {companiesForSelectedLetter.length > 0 ? (
-                  companiesForSelectedLetter.map((company) => (
-                    <tr 
-                      key={company.id_establecimiento} 
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
-                      onClick={() => openViewModal(company)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {company.nombre_establecimiento}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {company.rif_compania}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCompany(company.id_establecimiento)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Button
-                          onClick={(e) => { e.stopPropagation(); openViewModal(company); }}
-                          variant="ghost"
-                          size="sm"
-                          className="py-1 px-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-700/30"
-                          aria-label={`Ver detalles de ${company.nombre_establecimiento}`}
-                        >
-                          <EyeIcon className="w-4 h-4 mr-1" />
-                          Ver
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="text-center py-10 text-gray-500 dark:text-gray-400">
-                         {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione una letra para ver las empresas.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-grow">
+            <Card>
+                <CardHeader>
+                  <CardTitle>Directorio de Empresas Afiliadas</CardTitle>
+                  <CardDescription>
+                    Consulta la información de contacto de las empresas afiliadas.
+                  </CardDescription>
+                  <div className="mt-4">
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <SearchIcon className="h-5 w-5 text-gray-400" />
+                      </span>
+                      <Input
+                        type="text"
+                        placeholder="Buscar por nombre o RIF..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 w-full"
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="md:hidden flex flex-wrap gap-2 mb-4 border-b pb-4 dark:border-gray-700">
+                        {letterOrder.length > 0 ? (
+                        letterOrder.map(letter => (
+                            <button
+                            key={letter}
+                            onClick={() => setSelectedLetter(letter)}
+                            className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                                selectedLetter === letter
+                                ? 'bg-primary-600 text-white shadow'
+                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-primary-100 dark:hover:bg-primary-800'
+                            }`}
+                            >
+                            {letter}
+                            </button>
+                        ))
+                        ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No hay empresas afiliadas para mostrar.</p>
+                        )}
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre del Establecimiento</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RIF</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participantes</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {companiesForSelectedLetter.length > 0 ? (
+                            companiesForSelectedLetter.map((company) => (
+                                <tr 
+                                key={company.id_establecimiento} 
+                                className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
+                                onClick={() => openViewModal(company)}
+                                >
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                    {company.nombre_establecimiento}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                    {company.rif_compania}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCompany(company.id_establecimiento)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <Button
+                                    onClick={(e) => { e.stopPropagation(); openViewModal(company); }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="py-1 px-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-700/30"
+                                    aria-label={`Ver detalles de ${company.nombre_establecimiento}`}
+                                    >
+                                    <EyeIcon className="w-4 h-4 mr-1" />
+                                    Ver
+                                    </Button>
+                                </td>
+                                </tr>
+                            ))
+                            ) : (
+                            <tr>
+                                <td colSpan={4} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                                    {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione una letra para ver las empresas.'}
+                                </td>
+                            </tr>
+                            )}
+                        </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+        </main>
+      </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Detalles de: ${companyToView?.nombre_establecimiento || ''}`}>
         { renderViewCompanyContent() }

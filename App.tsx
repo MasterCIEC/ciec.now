@@ -1,4 +1,5 @@
 
+
 // App.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -38,10 +39,7 @@ const App = (): JSX.Element => {
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  // SE ELIMINA el estado para todas las empresas
-  // const [companies, setCompanies] = useState<Company[]>([]);
-  // NUEVO ESTADO solo para empresas afiliadas
-  const [affiliatedCompanies, setAffiliatedCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [meetingCategories, setMeetingCategories] = useState<MeetingCategory[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
@@ -84,46 +82,38 @@ const App = (): JSX.Element => {
     else setMeetingCategories(data || []);
   }, []);
 
-  // SE ELIMINA la función para cargar todas las empresas
-  /*
   const fetchCompanies = useCallback(async () => {
-    // ...
-  }, []);
-  */
-
-  // NUEVA FUNCIÓN para cargar solo las empresas afiliadas
-  const fetchAffiliatedCompanies = useCallback(async () => {
     if (!supabase) return;
-    const RIF_GREMIO = "J075109112";
 
     // 1. Obtener los IDs de los establecimientos afiliados
-    const { data: afiliaciones, error: afiliacionesError } = await supabase
+    const { data: affiliations, error: affiliationsError } = await supabase
       .from('afiliaciones_remotos')
       .select('id_establecimiento')
-      .eq('rif_institucion', RIF_GREMIO);
+      .eq('rif_institucion', 'J075109112');
 
-    if (afiliacionesError) {
-      console.error('Error al obtener afiliaciones:', afiliacionesError.message);
+    if (affiliationsError) {
+      console.error('Error al obtener afiliaciones:', affiliationsError.message);
+      setCompanies([]);
       return;
     }
 
-    const establecimientosIds = afiliaciones.map(a => a.id_establecimiento);
-
-    if (establecimientosIds.length === 0) {
-      setAffiliatedCompanies([]);
+    if (!affiliations || affiliations.length === 0) {
+      setCompanies([]); // No hay afiliados, la lista estará vacía
       return;
     }
+
+    const affiliatedIds = affiliations.map(a => a.id_establecimiento);
 
     // 2. Obtener los detalles de esos establecimientos
     const { data: companiesData, error: companiesError } = await supabase
       .from('establecimientos_remotos')
       .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1')
-      .in('id_establecimiento', establecimientosIds);
-
+      .in('id_establecimiento', affiliatedIds);
+    
     if (companiesError) {
       console.error('Error al obtener empresas afiliadas:', companiesError.message);
     } else {
-      setAffiliatedCompanies(companiesData || []);
+      setCompanies(companiesData || []);
     }
   }, []);
 
@@ -237,8 +227,7 @@ const App = (): JSX.Element => {
   useEffect(() => {
     if (supabase) {
       fetchMeetingCategories();
-      // fetchCompanies(); // SE ELIMINA ESTA LLAMADA
-      fetchAffiliatedCompanies(); // SE AÑADE LA NUEVA LLAMADA
+      fetchCompanies();
       fetchParticipants();
       fetchMeetings();
       fetchEventCategories();
@@ -250,7 +239,7 @@ const App = (): JSX.Element => {
       fetchEventOrganizingCategories();
     }
   }, [
-      fetchMeetingCategories, fetchAffiliatedCompanies, fetchParticipants, fetchMeetings,
+      fetchMeetingCategories, fetchCompanies, fetchParticipants, fetchMeetings,
       fetchEventCategories, fetchEvents, fetchParticipantMeetingCategories,
       fetchMeetingAttendees, fetchEventAttendees, fetchEventOrganizingMeetingCategories,
       fetchEventOrganizingCategories
@@ -699,7 +688,6 @@ const App = (): JSX.Element => {
       case ViewKey.Participants:
         return <ParticipantsView
           participants={participants}
-          // companies={companies} // SE ELIMINA ESTE PROP
           meetingCategories={meetingCategories}
           meetings={meetings}
           participantMeetingCategories={participantMeetingCategories}
@@ -711,12 +699,8 @@ const App = (): JSX.Element => {
         />;
       case ViewKey.Companies:
         return <CompaniesView
-          // companies={companies} // SE CAMBIA EL PROP
-          affiliatedCompanies={affiliatedCompanies}
+          companies={companies}
           participants={participants}
-          // onAddCompany={handleAddCompany} // SE ELIMINAN LOS PROPS DE ESCRITURA
-          // onUpdateCompany={handleUpdateCompany}
-          // onDeleteCompany={handleDeleteCompany}
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
       case ViewKey.Agenda:
