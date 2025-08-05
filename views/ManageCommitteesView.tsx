@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { MeetingCategory, Meeting, Participant, Event, ParticipantMeetingCategory, EventOrganizingMeetingCategory } from '../types';
 import Modal from '../components/Modal';
@@ -35,6 +36,14 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
   const [categoryToViewOrEdit, setCategoryToViewOrEdit] = useState<MeetingCategory | null>(null);
   const [formData, setFormData] = useState<Omit<MeetingCategory, 'id'>>(initialCategoryFormState);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletionInfo, setDeletionInfo] = useState<{
+    category: MeetingCategory;
+    relatedItems: {
+      meetings: string[];
+      participants: string[];
+      events: string[];
+    };
+  } | null>(null);
 
   useEffect(() => {
     if (categoryToViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
@@ -64,14 +73,39 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
   const openViewModal = (category: MeetingCategory) => { setCategoryToViewOrEdit(category); setModalMode('view'); setIsModalOpen(true); };
   const switchToEditModeFromView = () => { if (categoryToViewOrEdit) setModalMode('edit'); };
 
-  const handleDeleteConfirmed = async (category: MeetingCategory) => {
-    if (window.confirm(`¿Está seguro de que desea eliminar la categoría: "${category.name}"? Esta acción no se puede deshacer si no está en uso.`)) {
-      const success = await onDeleteMeetingCategory(category.id);
-      if (success && categoryToViewOrEdit && categoryToViewOrEdit.id === category.id) {
-        setIsModalOpen(false); setCategoryToViewOrEdit(null);
-      }
+  const handleDeleteRequest = (category: MeetingCategory) => {
+    const relatedMeetings = meetings.filter(m => m.meetingCategoryId === category.id);
+    const relatedParticipantsLinks = participantMeetingCategories.filter(pc => pc.meeting_category_id === category.id);
+    const relatedEventsLinks = eventOrganizingMeetingCategories.filter(eoc => eoc.meeting_category_id === category.id);
+
+    const relatedParticipantNames = relatedParticipantsLinks.map(link => 
+        participants.find(p => p.id === link.participant_id)?.name || `ID: ${link.participant_id}`
+    );
+    const relatedEventNames = relatedEventsLinks.map(link => 
+        events.find(e => e.id === link.event_id)?.subject || `ID: ${link.event_id}`
+    );
+    
+    setDeletionInfo({
+        category,
+        relatedItems: {
+            meetings: relatedMeetings.map(m => m.subject),
+            participants: relatedParticipantNames,
+            events: relatedEventNames,
+        }
+    });
+    // Close main modal if open
+    if (isModalOpen) {
+        setIsModalOpen(false);
     }
   };
+  
+  const handleConfirmDeletion = async (categoryId: string) => {
+    const success = await onDeleteMeetingCategory(categoryId);
+    if (success) {
+      setDeletionInfo(null);
+    }
+  };
+
 
   const filteredCategories = meetingCategories
     .filter(c => (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()))
@@ -122,7 +156,7 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
               </div>
               <div className="flex-shrink-0 flex flex-col space-y-1.5 items-end">
                 <Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
-                <Button onClick={(e)=>{e.stopPropagation();handleDeleteConfirmed(category);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
+                <Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
               </div>
             </div>
           </div>
@@ -136,7 +170,7 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
             {filteredCategories.map(category => (
               <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{category.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{category.id}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getMeetingsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getEventsCountForCategory(category.id)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteConfirmed(category);}} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td>
               </tr>
             ))}
             {filteredCategories.length === 0 && (<tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">No se encontraron categorías de reunión.</td></tr>)}
@@ -147,8 +181,54 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         { modalMode === 'view' ? renderViewCategoryContent() : renderFormContent() }
         <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-          {modalMode === 'view' && categoryToViewOrEdit ? (<><Button type="button" variant="danger" onClick={()=>handleDeleteConfirmed(categoryToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>) : (<><div/><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="category-form" variant="primary">{modalMode==='edit'?'Guardar Cambios':'Añadir Categoría'}</Button></div></>)}
+          {modalMode === 'view' && categoryToViewOrEdit ? (<><Button type="button" variant="danger" onClick={()=>handleDeleteRequest(categoryToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>) : (<><div/><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="category-form" variant="primary">{modalMode==='edit'?'Guardar Cambios':'Añadir Categoría'}</Button></div></>)}
         </div>
+      </Modal>
+
+      <Modal isOpen={!!deletionInfo} onClose={() => setDeletionInfo(null)} title="Confirmar Eliminación">
+        {deletionInfo && (() => {
+            const { category, relatedItems } = deletionInfo;
+            const hasHardDependencies = relatedItems.meetings.length > 0;
+            const hasSoftDependencies = relatedItems.participants.length > 0 || relatedItems.events.length > 0;
+
+            return (
+                <div className="text-sm">
+                    {hasHardDependencies ? (
+                        <>
+                            <p className="mb-4">No se puede eliminar la categoría <strong>"{category.name}"</strong> porque está directamente asignada a las siguientes reuniones. Por favor, reasigne o elimine estas reuniones primero:</p>
+                            <ul className="list-disc list-inside bg-red-50 dark:bg-red-900/30 p-3 rounded-md max-h-40 overflow-y-auto">
+                                {relatedItems.meetings.map((name, i) => <li key={i}>{name}</li>)}
+                            </ul>
+                        </>
+                    ) : (
+                        <>
+                            <p className="mb-4">¿Está seguro de que desea eliminar la categoría <strong>"{category.name}"</strong>?</p>
+                            {hasSoftDependencies && (
+                                <div className="mb-4">
+                                  <p className="font-semibold">Esta acción desvinculará los siguientes elementos (no serán eliminados):</p>
+                                  <div className="max-h-40 overflow-y-auto text-xs space-y-2 mt-2">
+                                      {relatedItems.participants.length > 0 && <div><strong>Participantes:</strong> {relatedItems.participants.join(', ')}</div>}
+                                      {relatedItems.events.length > 0 && <div><strong>Eventos:</strong> {relatedItems.events.join(', ')}</div>}
+                                  </div>
+                                </div>
+                            )}
+                            <p>Esta acción no se puede deshacer.</p>
+                        </>
+                    )}
+
+                    <div className="flex justify-end mt-6 space-x-2">
+                        <Button variant="secondary" onClick={() => setDeletionInfo(null)}>
+                            {hasHardDependencies ? 'Entendido' : 'Cancelar'}
+                        </Button>
+                        {!hasHardDependencies && (
+                            <Button variant="danger" onClick={() => handleConfirmDeletion(category.id)}>
+                                Sí, Eliminar
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            );
+        })()}
       </Modal>
     </div>
   );

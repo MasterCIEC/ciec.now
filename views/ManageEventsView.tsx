@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
 import Modal from '../components/Modal';
@@ -98,6 +96,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const organizerSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
   const [highlightedOrganizerIndex, setHighlightedOrganizerIndex] = useState(-1);
   const organizerListRef = useRef<HTMLDivElement>(null);
+
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
 
   const getParticipantName = useCallback((id: string) => participants.find(p => p.id === id)?.name || 'Desconocido', [participants]);
@@ -261,14 +261,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
       onUpdateEvent(eventForViewOrEdit.id, formData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
       setEventForViewOrEdit({...formData, id: eventForViewOrEdit.id}); 
       handleCloseModal(); 
-    }
-  };
-
-  const handleDeleteInternal = (eventId: string) => {
-    const eventToDelete = events.find(e => e.id === eventId) || eventForViewOrEdit;
-    if (window.confirm(`¿Está seguro de que desea eliminar el evento: "${eventToDelete?.subject || ''}"?`)) {
-      onDeleteEvent(eventId);
-      handleCloseModal();
     }
   };
 
@@ -641,7 +633,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Asunto</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Organizador</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fecha</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Hora</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Acciones</th></tr></thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredEvents.map(event => (<tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" onClick={() => handleOpenViewModal(event)}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{event.subject}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getDisplayOrganizerNameForEvent(event)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(event.date + 'T00:00:00Z').toLocaleDateString('es-ES')}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{event.startTime}</td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400"><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e) => { e.stopPropagation(); handleDeleteInternal(event.id); }} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td></tr>))}
+                    {filteredEvents.map(event => (<tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" onClick={() => handleOpenViewModal(event)}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{event.subject}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getDisplayOrganizerNameForEvent(event)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(event.date + 'T00:00:00Z').toLocaleDateString('es-ES')}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{event.startTime}</td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400"><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td></tr>))}
                   </tbody>
               </table>
             </div>
@@ -655,7 +647,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         <div className="flex justify-between items-center pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'create' && (<><div>{currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}</div><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Evento' : 'Siguiente'}</Button></div></>)}
           {modalMode === 'edit' && (<><div /><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button></div></>)}
-          {modalMode === 'view' && eventForViewOrEdit && (<><Button type="button" variant="danger" onClick={() => handleDeleteInternal(eventForViewOrEdit.id)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>)}
+          {modalMode === 'view' && eventForViewOrEdit && (<><Button type="button" variant="danger" onClick={() => { if(eventForViewOrEdit) setEventToDelete(eventForViewOrEdit) }} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>)}
         </div>
       </Modal>
 
@@ -693,6 +685,35 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleEventParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmEventParticipantSelection}>Confirmar Selección</Button></div>
       </Modal>)}
+
+      <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
+        {eventToDelete && (
+          <div className="text-sm">
+            <p className="mb-4">
+              ¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?
+            </p>
+            <p className="mb-4">
+              Esta acción también eliminará todos sus registros de asistencia y enlaces de organizador asociados.
+            </p>
+            <p>Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end mt-6 space-x-2">
+              <Button variant="secondary" onClick={() => setEventToDelete(null)}>
+                Cancelar
+              </Button>
+              <Button variant="danger" onClick={() => {
+                onDeleteEvent(eventToDelete.id);
+                if (isModalOpen && eventForViewOrEdit?.id === eventToDelete.id) {
+                    handleCloseModal();
+                }
+                setEventToDelete(null);
+              }}>
+                Sí, Eliminar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </div>
   );
 };

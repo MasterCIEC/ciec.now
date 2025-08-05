@@ -641,21 +641,32 @@ const App = (): JSX.Element => {
   const handleDeleteMeetingCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
 
-    const { count: meetingsCount } = await supabase.from('Meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
-    const { count: eventsCount } = await supabase.from('event_organizing_commissions').select('event_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
-    const { count: participantsCount } = await supabase.from('participant_commissions').select('participant_id', { count: 'exact', head: true }).eq('commission_id', categoryId);
-
-    if ((meetingsCount ?? 0 > 0) || (eventsCount ?? 0 > 0) || (participantsCount ?? 0 > 0)) {
-        alert("No se puede eliminar la categoría de reunión porque está en uso por reuniones, eventos o participantes.");
+    // Hard check for meetings with a direct foreign key. Deletion is blocked if these exist.
+    const { count: meetingsCount, error: meetingsError } = await supabase.from('Meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
+    
+    if (meetingsError) {
+        console.error('Error checking for related meetings:', meetingsError.message);
+        alert(`Error al verificar reuniones: ${meetingsError.message}`);
         return false;
     }
 
-    const { error } = await supabase.from('Commissions').delete().eq('id', categoryId);
-    if (error) {
-      console.error('Error al eliminar categoría de reunión:', error.message);
-      alert(`Error: ${error.message}`);
+    if ((meetingsCount ?? 0) > 0) {
+        // This alert is a fallback. The UI should prevent this call from being made.
+        alert("No se puede eliminar la categoría porque hay reuniones directamente asociadas. Por favor, reasigne o elimine esas reuniones primero.");
+        return false;
+    }
+
+    // If no hard-linked meetings, we can proceed to delete associations and then the category.
+    await supabase.from('participant_commissions').delete().eq('commission_id', categoryId);
+    await supabase.from('event_organizing_commissions').delete().eq('commission_id', categoryId);
+
+    const { error: deleteError } = await supabase.from('Commissions').delete().eq('id', categoryId);
+    if (deleteError) {
+      console.error('Error al eliminar categoría de reunión:', deleteError.message);
+      alert(`Error: ${deleteError.message}`);
       return false;
     }
+    
     fetchMeetingCategories();
     return true;
   };
@@ -680,12 +691,8 @@ const App = (): JSX.Element => {
   const handleDeleteEventCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
 
-    const { count } = await supabase.from('event_organizing_categories').select('event_id', { count: 'exact', head: true }).eq('category_id', categoryId);
-
-    if (count ?? 0 > 0) {
-        alert("No se puede eliminar la categoría porque está siendo utilizada por uno o más eventos.");
-        return false;
-    }
+    // Associations will be removed, then the category. This is less restrictive.
+    await supabase.from('event_organizing_categories').delete().eq('category_id', categoryId);
 
     const { error } = await supabase.from('EventCategories').delete().eq('id', categoryId);
     if (error) {

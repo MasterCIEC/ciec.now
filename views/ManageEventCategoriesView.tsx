@@ -32,6 +32,8 @@ const ManageEventCategoriesView: React.FC<ManageEventCategoriesViewProps> = ({
   const [categoryToViewOrEdit, setCategoryToViewOrEdit] = useState<EventCategory | null>(null);
   const [formData, setFormData] = useState<Omit<EventCategory, 'id'>>(initialCategoryFormState);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletionInfo, setDeletionInfo] = useState<{ category: EventCategory; relatedEvents: string[] } | null>(null);
+
 
   useEffect(() => {
     if (categoryToViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
@@ -57,15 +59,29 @@ const ManageEventCategoriesView: React.FC<ManageEventCategoriesViewProps> = ({
   const openViewModal = (category: EventCategory) => { setCategoryToViewOrEdit(category); setModalMode('view'); setIsModalOpen(true); };
   const switchToEditModeFromView = () => { if (categoryToViewOrEdit) setModalMode('edit'); };
 
-  const handleDeleteConfirmed = async (category: EventCategory) => {
-    if (window.confirm(`¿Está seguro de que desea eliminar la categoría: "${category.name}"? Esta acción no se puede deshacer si la categoría no está en uso.`)) {
-      const success = await onDeleteEventCategory(category.id);
-      // Alert logic for failure is now primarily handled in App.tsx
-      if (success && categoryToViewOrEdit && categoryToViewOrEdit.id === category.id) {
-        setIsModalOpen(false); setCategoryToViewOrEdit(null);
-      }
+  const handleDeleteRequest = (category: EventCategory) => {
+    const relatedEventsLinks = eventOrganizingCategories.filter(eoc => eoc.category_id === category.id);
+    const relatedEventNames = relatedEventsLinks.map(link => 
+      events.find(e => e.id === link.event_id)?.subject || `ID: ${link.event_id}`
+    );
+
+    setDeletionInfo({
+      category,
+      relatedEvents: relatedEventNames,
+    });
+
+    if (isModalOpen) {
+      setIsModalOpen(false);
     }
   };
+
+  const handleConfirmDeletion = async (categoryId: string) => {
+    const success = await onDeleteEventCategory(categoryId);
+    if (success) {
+      setDeletionInfo(null);
+    }
+  };
+
 
   const filteredCategories = eventCategories
     .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -106,7 +122,7 @@ const ManageEventCategoriesView: React.FC<ManageEventCategoriesViewProps> = ({
           <div key={category.id} className="bg-gray-50 dark:bg-gray-700 shadow-sm rounded-md p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
             <div className="flex justify-between items-start w-full gap-3">
               <div className="flex-grow space-y-0.5"><h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 break-words">{category.name}</h3><p className="text-xs text-gray-500 dark:text-gray-300">Eventos: {getEventsCountForCategory(category.id)}</p><p className="text-xxs text-gray-400 dark:text-gray-500">ID: {category.id}</p></div>
-              <div className="flex-shrink-0 flex flex-col space-y-1.5 items-end"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteConfirmed(category);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button></div>
+              <div className="flex-shrink-0 flex flex-col space-y-1.5 items-end"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button></div>
             </div>
           </div>
         ))}
@@ -116,7 +132,7 @@ const ManageEventCategoriesView: React.FC<ManageEventCategoriesViewProps> = ({
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Eventos Asociados</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th></tr></thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredCategories.map(category => (<tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={()=>openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{category.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{category.id}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getEventsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteConfirmed(category);}} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td></tr>))}
+            {filteredCategories.map(category => (<tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={()=>openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{category.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{category.id}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getEventsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2"><Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="ghost" size="sm" className="py-1 px-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button><Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="ghost" size="sm" className="py-1 px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button></td></tr>))}
             {filteredCategories.length === 0 && (<tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">No se encontraron categorías.</td></tr>)}
           </tbody>
         </table>
@@ -125,9 +141,41 @@ const ManageEventCategoriesView: React.FC<ManageEventCategoriesViewProps> = ({
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         { modalMode === 'view' ? renderViewCategoryContent() : renderFormContent() }
         <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-          {modalMode === 'view' && categoryToViewOrEdit ? (<><Button type="button" variant="danger" onClick={()=>handleDeleteConfirmed(categoryToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>) : (<><div/><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="eventcategory-form" variant="primary">{modalMode==='edit'?'Guardar Cambios':'Añadir Categoría'}</Button></div></>)}
+          {modalMode === 'view' && categoryToViewOrEdit ? (<><Button type="button" variant="danger" onClick={()=>handleDeleteRequest(categoryToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button></div></>) : (<><div/><div className="space-x-3"><Button type="button" variant="secondary" onClick={()=>setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="eventcategory-form" variant="primary">{modalMode==='edit'?'Guardar Cambios':'Añadir Categoría'}</Button></div></>)}
         </div>
       </Modal>
+
+      <Modal isOpen={!!deletionInfo} onClose={() => setDeletionInfo(null)} title="Confirmar Eliminación">
+        {deletionInfo && (() => {
+            const { category, relatedEvents } = deletionInfo;
+            const hasRelatedItems = relatedEvents.length > 0;
+
+            return (
+                <div className="text-sm">
+                    <p className="mb-4">¿Está seguro de que desea eliminar la categoría <strong>"{category.name}"</strong>?</p>
+                    {hasRelatedItems && (
+                        <div className="mb-4">
+                            <p className="font-semibold">Esta acción desvinculará los siguientes eventos (no serán eliminados):</p>
+                            <ul className="list-disc list-inside bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-md max-h-40 overflow-y-auto mt-2">
+                                {relatedEvents.map((name, i) => <li key={i}>{name}</li>)}
+                            </ul>
+                        </div>
+                    )}
+                    <p>Esta acción no se puede deshacer.</p>
+
+                    <div className="flex justify-end mt-6 space-x-2">
+                        <Button variant="secondary" onClick={() => setDeletionInfo(null)}>
+                            Cancelar
+                        </Button>
+                        <Button variant="danger" onClick={() => handleConfirmDeletion(category.id)}>
+                            Sí, Eliminar
+                        </Button>
+                    </div>
+                </div>
+            );
+        })()}
+      </Modal>
+
     </div>
   );
 };

@@ -90,6 +90,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   const participantSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
   const [highlightedParticipantIndex, setHighlightedParticipantIndex] = useState(-1);
   const participantListRef = useRef<HTMLDivElement>(null);
+  const [meetingToDelete, setMeetingToDelete] = useState<Meeting | null>(null);
 
 
   const getParticipantName = (id: string) => participants.find(p => p.id === id)?.name || 'Desconocido';
@@ -257,14 +258,6 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
       onUpdateMeeting(meetingForViewOrEdit.id, formData, selectedAttendeesInPerson, selectedAttendeesOnline);
       setMeetingForViewOrEdit({...formData, id: meetingForViewOrEdit.id }); 
       handleCloseModal(); 
-    }
-  };
-
-  const handleDeleteInternal = (meetingId: string) => {
-    const meetingToDelete = meetings.find(m => m.id === meetingId) || meetingForViewOrEdit;
-    if (window.confirm(`¿Está seguro de que desea eliminar la reunión: "${meetingToDelete?.subject || ''}"?`)) {
-      onDeleteMeeting(meetingId);
-      handleCloseModal();
     }
   };
 
@@ -582,7 +575,7 @@ CIEC.Now`
                       <div className="flex-shrink-0 flex flex-col space-y-1.5 items-end">
                         {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" className="py-1 px-2 text-xs" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
                         <Button onClick={(e)=>{e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
-                        <Button onClick={(e)=>{e.stopPropagation(); handleDeleteInternal(meeting.id);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
+                        <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
                       </div>
                     </div>
                   </div>
@@ -617,7 +610,7 @@ CIEC.Now`
                           <div className="flex items-center space-x-2">
                               {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" className="!py-1 !px-2 text-xs" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
                               <Button onClick={(e) => { e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true); }} variant="ghost" size="sm" className="!p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-4 h-4" /></Button>
-                              <Button onClick={(e) => { e.stopPropagation(); handleDeleteInternal(meeting.id); }} variant="ghost" size="sm" className="!p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-4 h-4" /></Button>
+                              <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="ghost" size="sm" className="!p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-4 h-4" /></Button>
                           </div>
                         </td>
                     </tr>))}
@@ -639,7 +632,7 @@ CIEC.Now`
         <div className="flex justify-between items-center pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'create' && (<><div>{currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}</div><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Reunión' : 'Siguiente'}</Button></div></>)}
           {modalMode === 'edit' && (<><div /><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button></div></>)}
-          {modalMode === 'view' && meetingForViewOrEdit && (<><div className="flex items-center gap-2"><Button type="button" variant="danger" onClick={() => handleDeleteInternal(meetingForViewOrEdit.id)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1" /> Eliminar</Button><Button type="button" variant="ghost" onClick={() => handleSendInvitation(meetingForViewOrEdit)}><EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo</Button></div><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1" /> Editar</Button></div></>)}
+          {modalMode === 'view' && meetingForViewOrEdit && (<><div className="flex items-center gap-2"><Button type="button" variant="danger" onClick={() => { if(meetingForViewOrEdit) setMeetingToDelete(meetingForViewOrEdit); }} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1" /> Eliminar</Button><Button type="button" variant="ghost" onClick={() => handleSendInvitation(meetingForViewOrEdit)}><EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo</Button></div><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1" /> Editar</Button></div></>)}
         </div>
       </Modal>
 
@@ -662,6 +655,35 @@ CIEC.Now`
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmParticipantSelection}>Confirmar Selección</Button></div>
         </Modal>
       )}
+      
+      <Modal isOpen={!!meetingToDelete} onClose={() => setMeetingToDelete(null)} title="Confirmar Eliminación">
+        {meetingToDelete && (
+          <div className="text-sm">
+            <p className="mb-4">
+              ¿Está seguro de que desea eliminar la reunión: <strong>"{meetingToDelete.subject}"</strong>?
+            </p>
+            <p className="mb-4">
+              Esta acción también eliminará todos sus registros de asistencia asociados.
+            </p>
+            <p>Esta acción no se puede deshacer.</p>
+
+            <div className="flex justify-end mt-6 space-x-2">
+              <Button variant="secondary" onClick={() => setMeetingToDelete(null)}>
+                Cancelar
+              </Button>
+              <Button variant="danger" onClick={() => {
+                onDeleteMeeting(meetingToDelete.id);
+                setMeetingToDelete(null);
+                if (isModalOpen) {
+                  handleCloseModal();
+                }
+              }}>
+                Sí, Eliminar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

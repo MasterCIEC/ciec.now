@@ -1,4 +1,3 @@
-// views/ParticipantsView.tsx
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
@@ -54,6 +53,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('add');
   const [participantToViewOrEdit, setParticipantToViewOrEdit] = useState<Participant | null>(null);
+  const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null);
   const [formData, setFormData] = useState<Omit<Participant, 'id'>>(initialParticipantFormState);
   const [selectedCategoryIdsInModal, setSelectedCategoryIdsInModal] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -190,14 +190,6 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     if (participantToViewOrEdit) setModalMode('edit');
   };
 
-  const handleDelete = (e: React.MouseEvent, participant: Participant) => {
-    e.stopPropagation();
-    if (window.confirm(`¿Está seguro de que desea eliminar al participante: "${participant.name}"?`)) {
-      onDeleteParticipant(participant.id);
-      setIsModalOpen(false);
-    }
-  };
-
   const getParticipantAffiliationDetails = useCallback(async (participant: Participant): Promise<string> => {
     if (!supabase) return 'Error de conexión';
     const cacheKey = participant.id_establecimiento || 'independent';
@@ -280,7 +272,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         </thead>
         <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
           {participantList.map(participant => (
-            <tr key={participant.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30" onClick={() => openViewModal(participant)}>
+            <tr key={participant.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => openViewModal(participant)}>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300"><AffiliationDetail participant={participant} /></td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
@@ -289,7 +281,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                 <Button onClick={(e) => { e.stopPropagation(); setParticipantToViewOrEdit(participant); setModalMode('edit'); setIsModalOpen(true); }} size="sm" className="!px-2 !py-1" aria-label={`Editar ${participant.name}`}><EditIcon className="w-4 h-4" /></Button>
-                <Button onClick={(e) => handleDelete(e, participant)} size="sm" className="!px-2 !py-1" variant="danger" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4" /></Button>
+                <Button onClick={(e) => { e.stopPropagation(); setParticipantToDelete(participant) }} size="sm" className="!px-2 !py-1" variant="danger" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4" /></Button>
               </td>
             </tr>
           ))}
@@ -381,13 +373,42 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         { modalMode === 'view' ? renderViewParticipantContent() : renderFormContent() }
         <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'view' && participantToViewOrEdit ? (
-            <><Button type="button" variant="danger" onClick={(e) => handleDelete(e, participantToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/> Eliminar</Button>
+            <><Button type="button" variant="danger" onClick={() => setParticipantToDelete(participantToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/> Eliminar</Button>
             <div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/> Editar</Button></div></>
           ) : (
             <><div /><div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="participant-form" variant="primary">{modalMode === 'edit' ? 'Guardar Cambios' : 'Añadir'}</Button></div></>
           )}
         </div>
       </Modal>
+
+      <Modal isOpen={!!participantToDelete} onClose={() => setParticipantToDelete(null)} title="Confirmar Eliminación">
+        {participantToDelete && (
+          <div className="text-sm">
+            <p className="mb-4">
+              ¿Está seguro de que desea eliminar al participante: <strong>"{participantToDelete.name}"</strong>?
+            </p>
+            <p className="mb-4">
+              Esta acción también eliminará todos sus registros de asistencia asociados.
+            </p>
+            <p>Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end mt-6 space-x-2">
+              <Button variant="secondary" onClick={() => setParticipantToDelete(null)}>
+                Cancelar
+              </Button>
+              <Button variant="danger" onClick={() => {
+                onDeleteParticipant(participantToDelete.id);
+                setParticipantToDelete(null);
+                if (isModalOpen && participantToViewOrEdit?.id === participantToDelete.id) {
+                    setIsModalOpen(false);
+                }
+              }}>
+                Sí, Eliminar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
     </div>
   );
 };
