@@ -9,7 +9,7 @@ const Card = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={`bg-white dark:bg-gray-800 shadow-md rounded-lg ${className}`}
+    className={`bg-white dark:bg-slate-800 shadow-md rounded-lg ${className}`}
     {...props}
   />
 ));
@@ -22,7 +22,7 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={`p-4 md:p-6 border-b border-gray-200 dark:border-gray-700 ${className}`}
+    className={`p-4 md:p-6 border-b border-gray-200 dark:border-slate-700 ${className}`}
     {...props}
   />
 ));

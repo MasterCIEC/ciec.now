@@ -2,22 +2,21 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Participant, MeetingCategory, Meeting, ParticipantMeetingCategory, MeetingAttendee, Company } from '../types';
+import { Participant, MeetingCategory, Company, ParticipantMeetingCategory } from '../types';
 import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
-// Importación individual y directa de cada icono
 import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
+import ChevronDownIcon from '../components/icons/ChevronDownIcon';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 
 interface ParticipantsViewProps {
   participants: Participant[];
   meetingCategories: MeetingCategory[];
-  meetings: Meeting[];
   participantMeetingCategories: ParticipantMeetingCategory[];
-  meetingAttendees: MeetingAttendee[];
   onAddParticipant: (participantData: Omit<Participant, 'id'>, selectedCategoryIds: string[]) => void;
   onUpdateParticipant: (participantId: string, participantData: Omit<Participant, 'id'>, selectedCategoryIds: string[]) => void;
   onDeleteParticipant: (participantId: string) => void;
@@ -34,12 +33,19 @@ const initialParticipantFormState: Omit<Participant, 'id'> = {
 
 type ModalMode = 'add' | 'edit' | 'view';
 
+const normalizeString = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+};
+
 const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   participants,
   meetingCategories,
-  meetings,
   participantMeetingCategories,
-  meetingAttendees,
   onAddParticipant,
   onUpdateParticipant,
   onDeleteParticipant,
@@ -51,14 +57,21 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   const [formData, setFormData] = useState<Omit<Participant, 'id'>>(initialParticipantFormState);
   const [selectedCategoryIdsInModal, setSelectedCategoryIdsInModal] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-
   const [searchTermEst, setSearchTermEst] = useState('');
   const [establecimientoSugeridos, setEstablecimientoSugeridos] = useState<Company[]>([]);
   const [isLoadingSugerencias, setIsLoadingSugerencias] = useState(false);
-
   const [affiliationDetailsCache, setAffiliationDetailsCache] = useState(new Map<string, string>());
   const RIF_GREMIO = "J075109112";
+
+  const [expandedCommissions, setExpandedCommissions] = useState<string[]>([]);
+
+  const toggleCommission = (commissionId: string) => {
+    setExpandedCommissions(prev => 
+      prev.includes(commissionId)
+        ? prev.filter(id => id !== commissionId)
+        : [...prev, commissionId]
+    );
+  };
 
   useEffect(() => {
     if (participantToViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
@@ -73,10 +86,8 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
       if (participantToViewOrEdit.id_establecimiento) {
         const fetchEstName = async () => {
           if (!supabase) return;
-          const { data } = await supabase.from('establecimientos_remotos').select('nombre_establecimiento').eq('id_establecimiento', participantToViewOrEdit.id_establecimiento!).single();
-          if (data) {
-            setSearchTermEst(data.nombre_establecimiento);
-          }
+          const { data } = await supabase.from('establecimientos_completos_remotos').select('nombre_establecimiento').eq('id_establecimiento', participantToViewOrEdit.id_establecimiento!).single();
+          if (data) setSearchTermEst(data.nombre_establecimiento);
         };
         fetchEstName();
       } else {
@@ -116,8 +127,8 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     }
     setIsLoadingSugerencias(true);
     const { data, error } = await supabase
-      .from('establecimientos_remotos')
-      .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1')
+      .from('establecimientos_completos_remotos')
+      .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1, nombre_municipio')
       .ilike('nombre_establecimiento', `%${term}%`)
       .limit(5);
 
@@ -148,15 +159,13 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
       alert("Por favor, complete todos los campos obligatorios: Nombre y Rol.");
       return;
     }
-    
     const participantDataToSave: Omit<Participant, 'id'> = {
-        name: formData.name.trim(),
-        id_establecimiento: formData.id_establecimiento || null,
-        role: formData.role.trim(),
-        email: formData.email?.trim() || null,
-        phone: formData.phone?.trim() || null,
+      name: formData.name.trim(),
+      id_establecimiento: formData.id_establecimiento || null,
+      role: formData.role.trim(),
+      email: formData.email?.trim() || null,
+      phone: formData.phone?.trim() || null,
     };
-
     if (modalMode === 'edit' && participantToViewOrEdit) {
       onUpdateParticipant(participantToViewOrEdit.id, participantDataToSave, selectedCategoryIdsInModal);
     } else if (modalMode === 'add') {
@@ -195,35 +204,23 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     if (affiliationDetailsCache.has(cacheKey)) {
       return affiliationDetailsCache.get(cacheKey)!;
     }
+    if (!participant.id_establecimiento) return 'Independiente';
 
-    if (!participant.id_establecimiento) {
-      return 'Independiente';
-    }
-
-    const { data: estData, error: estError } = await supabase
-      .from('establecimientos_remotos')
+    const { data: estData } = await supabase
+      .from('establecimientos_completos_remotos')
       .select('nombre_establecimiento')
       .eq('id_establecimiento', participant.id_establecimiento)
       .single();
+    if (!estData) return 'Establecimiento Desconocido';
 
-    if (estError || !estData) {
-      return 'Establecimiento Desconocido';
-    }
-
-    const { data: affData, error: affError } = await supabase
+    const { data: affData } = await supabase
       .from('afiliaciones_remotos')
       .select('id_establecimiento')
       .eq('id_establecimiento', participant.id_establecimiento)
       .eq('rif_institucion', RIF_GREMIO)
       .single();
 
-    let detailString = '';
-    if (affError || !affData) {
-      detailString = `Externo: ${estData.nombre_establecimiento}`;
-    } else {
-      detailString = `Afiliado: ${estData.nombre_establecimiento}`;
-    }
-
+    const detailString = affData ? `Afiliado: ${estData.nombre_establecimiento}` : `Externo: ${estData.nombre_establecimiento}`;
     setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
     return detailString;
   }, [affiliationDetailsCache, RIF_GREMIO]);
@@ -232,179 +229,165 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     const [details, setDetails] = useState<string>('Cargando...');
     useEffect(() => {
       getParticipantAffiliationDetails(participant).then(setDetails);
-    }, [participant]);
+    }, [participant, getParticipantAffiliationDetails]);
     return <>{details}</>;
+  };
+
+  const groupedParticipants = useMemo(() => {
+    const normalizedSearch = normalizeString(searchTerm);
+
+    const byCommission = meetingCategories.map(commission => {
+      const participantIds = participantMeetingCategories
+        .filter(pc => pc.meeting_category_id === commission.id)
+        .map(pc => pc.participant_id);
+      
+      const commissionParticipants = participants
+        .filter(p => participantIds.includes(p.id))
+        .filter(p => 
+          normalizedSearch === '' ||
+          normalizeString(p.name || '').includes(normalizedSearch) ||
+          normalizeString(p.email || '').includes(normalizedSearch)
+        )
+        .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
+      return { commission, participants: commissionParticipants };
+    }).sort((a,b) => a.commission.name.localeCompare(b.commission.name));
+
+    const allAssignedParticipantIds = new Set(participantMeetingCategories.map(pc => pc.participant_id));
+    const unassignedParticipants = participants
+      .filter(p => !allAssignedParticipantIds.has(p.id))
+      .filter(p => 
+        normalizedSearch === '' ||
+        normalizeString(p.name || '').includes(normalizedSearch) ||
+        normalizeString(p.email || '').includes(normalizedSearch)
+      )
+      .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
+    return { byCommission, unassignedParticipants };
+  }, [participants, meetingCategories, participantMeetingCategories, searchTerm]);
+
+  const ParticipantTable = ({ participantList }: { participantList: Participant[] }) => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+        <thead className="bg-slate-50 dark:bg-slate-800">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Afiliación</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+          {participantList.map(participant => (
+            <tr key={participant.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30" onClick={() => openViewModal(participant)}>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300"><AffiliationDetail participant={participant} /></td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                <div>{participant.email || '-'}</div><div>{participant.phone || ''}</div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                <Button onClick={(e) => { e.stopPropagation(); setParticipantToViewOrEdit(participant); setModalMode('edit'); setIsModalOpen(true); }} size="sm" className="!px-2 !py-1" aria-label={`Editar ${participant.name}`}><EditIcon className="w-4 h-4" /></Button>
+                <Button onClick={(e) => handleDelete(e, participant)} size="sm" className="!px-2 !py-1" variant="danger" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4" /></Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const getModalTitle = () => {
+    if (modalMode === 'add') return 'Añadir Nuevo Participante';
+    if (modalMode === 'edit') return `Editar: ${participantToViewOrEdit?.name || ''}`;
+    if (modalMode === 'view') return `Detalles de: ${participantToViewOrEdit?.name || ''}`;
+    return 'Participante';
   };
 
   const renderFormContent = () => (
     <form onSubmit={handleSubmit} className="space-y-4" id="participant-form">
       <Input label="Nombre Completo" name="name" value={formData.name} onChange={handleInputChange} required autoFocus={modalMode === 'add'} />
       <Input label="Rol/Cargo" name="role" value={formData.role || ''} onChange={handleInputChange} required />
-      
       <div className="relative">
-        <Input
-          label="Empresa / Establecimiento (Opcional)"
-          name="establecimiento"
-          value={searchTermEst}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchEstablecimiento(e.target.value)}
-          placeholder="Escriba para buscar..."
-        />
-        {formData.id_establecimiento && (
-          <button type="button" onClick={handleClearEstablecimiento} className="absolute right-2 top-9 text-red-500 hover:text-red-700">
-            <TrashIcon className="w-4 h-4" />
-          </button>
-        )}
+        <Input label="Empresa (Opcional)" name="establecimiento" value={searchTermEst} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchEstablecimiento(e.target.value)} placeholder="Escriba para buscar..."/>
+        {formData.id_establecimiento && (<button type="button" onClick={handleClearEstablecimiento} className="absolute right-2 top-9 text-red-500 hover:text-red-700"><TrashIcon className="w-4 h-4" /></button>)}
         {isLoadingSugerencias && <div className="p-2 text-sm text-gray-500">Buscando...</div>}
         {establecimientoSugeridos.length > 0 && (
           <ul className="absolute z-10 w-full bg-white dark:bg-gray-700 border rounded-md shadow-lg max-h-40 overflow-y-auto mt-1">
-            {establecimientoSugeridos.map(est => (
-              <li key={est.id_establecimiento}
-                  className="px-3 py-2 hover:bg-primary-100 cursor-pointer"
-                  onMouseDown={() => handleSelectEstablecimiento(est)}>
-                {est.nombre_establecimiento}
-              </li>
-            ))}
+            {establecimientoSugeridos.map(est => (<li key={est.id_establecimiento} className="px-3 py-2 hover:bg-primary-100 cursor-pointer" onMouseDown={() => handleSelectEstablecimiento(est)}>{est.nombre_establecimiento}</li>))}
           </ul>
         )}
       </div>
-
-      <Input label="Correo Electrónico (Opcional)" name="email" type="email" value={formData.email || ''} onChange={handleInputChange} />
+      <Input label="Correo (Opcional)" name="email" type="email" value={formData.email || ''} onChange={handleInputChange} />
       <Input label="Teléfono (Opcional)" name="phone" type="tel" value={formData.phone || ''} onChange={handleInputChange} />
-      <Select
-        label="Categorías de Reuniones (Opcional)"
-        name="categoryIdsModal"
-        multiple
-        value={selectedCategoryIdsInModal}
-        onChange={handleMultiSelectChange}
-        options={meetingCategories.map(c => ({ value: c.id, label: c.name }))}
-        className="h-32"
-      />
+      <Select label="Comisiones (Opcional)" name="categoryIdsModal" multiple value={selectedCategoryIdsInModal} onChange={handleMultiSelectChange} options={meetingCategories.map(c => ({ value: c.id, label: c.name }))} className="h-32" />
     </form>
   );
 
   const renderViewParticipantContent = () => {
     if (!participantToViewOrEdit) return null;
-    return (
-        <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
-            <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{participantToViewOrEdit.name}</h4>
-            <p><strong>Afiliación:</strong> <AffiliationDetail participant={participantToViewOrEdit} /></p>
-            <p><strong>Rol/Cargo:</strong> {participantToViewOrEdit.role}</p>
-            <p><strong>Correo Electrónico:</strong> {participantToViewOrEdit.email || 'No Especificado'}</p>
-            {participantToViewOrEdit.phone && <p><strong>Teléfono:</strong> {participantToViewOrEdit.phone}</p>}
-        </div>
-    );
+    return (<div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
+        <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{participantToViewOrEdit.name}</h4>
+        <p><strong>Afiliación:</strong> <AffiliationDetail participant={participantToViewOrEdit} /></p>
+        <p><strong>Rol/Cargo:</strong> {participantToViewOrEdit.role}</p>
+        <p><strong>Correo:</strong> {participantToViewOrEdit.email || 'N/A'}</p>
+        {participantToViewOrEdit.phone && <p><strong>Teléfono:</strong> {participantToViewOrEdit.phone}</p>}
+    </div>);
   };
-  
-  const getModalTitle = () => {
-    if (modalMode === 'add') return 'Añadir Nuevo Participante';
-    if (modalMode === 'edit') return `Editar Participante: ${participantToViewOrEdit?.name || ''}`;
-    if (modalMode === 'view') return `Detalles de: ${participantToViewOrEdit?.name || ''}`;
-    return 'Participante';
-  };
-
-  const filteredParticipants = useMemo(() => participants
-    .filter(p =>
-        (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    .sort((a,b)=> (a.name || '').localeCompare(b.name || '')),
-  [participants, searchTerm]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Participantes</h1>
-            <div className="flex space-x-2">
-                <Button onClick={openAddModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir Participante</Button>
-                {onNavigateBack && (<Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button>)}
-            </div>
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Participantes</h1>
+        <div className="flex space-x-2">
+          <Button onClick={openAddModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir</Button>
+          {onNavigateBack && (<Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button>)}
         </div>
-        <Input 
-          placeholder="Buscar participantes por nombre o correo..." 
-          value={searchTerm} 
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)} 
-          className="mb-4" 
-        />
-        
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Afiliación</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredParticipants.map(participant => (
-                        <tr 
-                          key={participant.id} 
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" 
-                          onClick={() => openViewModal(participant)}
-                        >
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                <AffiliationDetail participant={participant} />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                <div>{participant.email || '-'}</div>
-                                <div>{participant.phone || ''}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                <Button 
-                                  onClick={(e) => {
-                                    e.stopPropagation(); 
-                                    setParticipantToViewOrEdit(participant); 
-                                    setModalMode('edit'); 
-                                    setIsModalOpen(true);
-                                  }} 
-                                  size="sm" 
-                                  className="!px-2 !py-1" 
-                                  aria-label={`Editar ${participant.name}`}
-                                >
-                                  <EditIcon className="w-4 h-4" />
-                                </Button>
-                                <Button 
-                                  onClick={(e) => handleDelete(e, participant)} 
-                                  size="sm" 
-                                  className="!px-2 !py-1" 
-                                  variant="danger" 
-                                  aria-label={`Eliminar ${participant.name}`}
-                                >
-                                  <TrashIcon className="w-4 h-4" />
-                                </Button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+      </div>
+      <Input placeholder="Buscar por nombre o correo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mb-4" />
 
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-            { modalMode === 'view' ? renderViewParticipantContent() : renderFormContent() }
-            <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-                {modalMode === 'view' && participantToViewOrEdit ? (
-                    <>
-                        <Button type="button" variant="danger" onClick={(e) => handleDelete(e, participantToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/> Eliminar</Button>
-                        <div className="space-x-3">
-                            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
-                            <Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/> Editar</Button>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div />
-                        <div className="space-x-3">
-                            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                            <Button type="submit" form="participant-form" variant="primary" >{modalMode === 'edit' ? 'Guardar Cambios' : 'Añadir Participante'}</Button>
-                        </div>
-                    </>
-                )}
-            </div>
-        </Modal>
+      <div className="space-y-4">
+        {groupedParticipants.byCommission.map(({ commission, participants: commissionParticipants }) => {
+          if (commissionParticipants.length === 0 && searchTerm) return null;
+          const isExpanded = expandedCommissions.includes(commission.id);
+          return (
+            <Card key={commission.id} className="overflow-hidden">
+              <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleCommission(commission.id)} role="button" aria-expanded={isExpanded}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3"><CardTitle>{commission.name}</CardTitle><span className="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-primary-900 dark:text-primary-300">{commissionParticipants.length}</span></div>
+                  <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </div>
+              </CardHeader>
+              {isExpanded && (<CardContent className="p-0">{commissionParticipants.length > 0 ? <ParticipantTable participantList={commissionParticipants} /> : <p className="p-6 text-sm text-gray-500 dark:text-gray-400">No hay participantes asignados a esta comisión.</p>}</CardContent>)}
+            </Card>
+          );
+        })}
+
+        {groupedParticipants.unassignedParticipants.length > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleCommission('unassigned')} role="button" aria-expanded={expandedCommissions.includes('unassigned')}>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3"><CardTitle>Participantes Sin Comisión</CardTitle><span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-yellow-900 dark:text-yellow-300">{groupedParticipants.unassignedParticipants.length}</span></div>
+                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedCommissions.includes('unassigned') ? 'rotate-180' : ''}`} />
+              </div>
+            </CardHeader>
+            {expandedCommissions.includes('unassigned') && (<CardContent className="p-0"><ParticipantTable participantList={groupedParticipants.unassignedParticipants} /></CardContent>)}
+          </Card>
+        )}
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
+        { modalMode === 'view' ? renderViewParticipantContent() : renderFormContent() }
+        <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+          {modalMode === 'view' && participantToViewOrEdit ? (
+            <><Button type="button" variant="danger" onClick={(e) => handleDelete(e, participantToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/> Eliminar</Button>
+            <div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/> Editar</Button></div></>
+          ) : (
+            <><div /><div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="participant-form" variant="primary">{modalMode === 'edit' ? 'Guardar Cambios' : 'Añadir'}</Button></div></>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

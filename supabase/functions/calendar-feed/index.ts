@@ -23,28 +23,24 @@ serve(async (req) => {
   }
 
   try {
-    // ESTA ES LA FORMA CORRECTA Y SIMPLE
-    // Usa las variables de entorno que la CLI de Supabase provee automáticamente.
-    // En local, SUPABASE_URL será 'http://kong:8000', lo cual es correcto para la comunicación entre contenedores.
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 1. OBTENER LOS DATOS (ahora la conexión funcionará)
+    // 1. OBTENER LOS DATOS - INCLUYENDO EL ID PARA UIDs ESTABLES
     const { data: meetings, error: meetingsError } = await supabaseClient
       .from('Meetings')
-      .select('subject, date, start_time, end_time, location, description')
+      .select('id, subject, date, start_time, end_time, location, description')
 
     const { data: events, error: eventsError } = await supabaseClient
       .from('Events')
-      .select('subject, date, start_time, end_time, location, description')
+      .select('id, subject, date, start_time, end_time, location, description')
       
     if (meetingsError) throw meetingsError
     if (eventsError) throw eventsError
 
     // 2. FORMATEAR A iCALENDAR (.ics)
-    // (El resto de tu lógica de formato de calendario va aquí, sin cambios)
     const formatIcsText = (text: string | null): string => {
         if (!text) return '';
         return text.replace(/,/g, '\\,').replace(/\n/g, '\\n');
@@ -52,30 +48,36 @@ serve(async (req) => {
 
     const formatIcsDateTime = (dateStr: string, timeStr: string | null): string => {
         if (!timeStr) {
-            const date = new Date(dateStr + 'T00:00:00');
+            const date = new Date(dateStr + 'T00:00:00Z'); // Use Z para UTC
             return `;VALUE=DATE:${date.toISOString().slice(0, 10).replace(/-/g, '')}`;
         }
+        // Asume que la hora está en la zona horaria del servidor (o la que se usó para guardar)
+        // Y la convierte a UTC para el estándar iCal
         const localDate = new Date(`${dateStr}T${timeStr}`);
         if (isNaN(localDate.getTime())) return '';
-        return `:${localDate.toISOString().replace(/-|:|\.\d+/g, '')}Z`;
+        return `:${localDate.toISOString().replace(/-|:|\.\d+/g, '')}`;
     };
     
     let icsString = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//CIEC.Now//Agenda General//ES',
+      'PRODID:-//CIEC.Now//Supabase Edge Function//ES',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'X-WR-CALNAME:Agenda CIEC.Now',
       'X-WR-TIMEZONE:America/Caracas',
-      'X-WR-CALDESC:Calendario de eventos y reuniones de CIEC.Now'
+      'X-WR-CALDESC:Calendario de eventos y reuniones de CIEC.Now',
+      'X-WR-RELCALID:agenda-ciec-now-calendar-v1',
+      'X-PUBLISHED-TTL:PT1H', // Sugiere refrescar cada hora
+      'REFRESH-INTERVAL;VALUE=DURATION:PT1H' // Otra propiedad para el refresco
     ].join('\r\n');
 
     const allItems = [...(meetings || []), ...(events || [])];
 
-    allItems.forEach((item, index) => {
-      const uid = `${item.date}-${index}@ciec.now`;
-      const dtstamp = new Date().toISOString().replace(/-|:|\.\d+/g, '') + 'Z';
+    allItems.forEach((item) => {
+      // Usar el ID de la base de datos para un UID estable y único
+      const uid = `${item.id}@ciec.now`;
+      const dtstamp = new Date().toISOString().replace(/-|:|\.\d+/g, '');
       const summary = formatIcsText(item.subject);
       const description = formatIcsText(item.description);
       const location = formatIcsText(item.location);
@@ -83,20 +85,23 @@ serve(async (req) => {
       const dtstart = formatIcsDateTime(item.date, item.start_time);
       
       let dtend = item.end_time ? formatIcsDateTime(item.date, item.end_time) : '';
+      
+      // Si no hay hora de fin pero sí de inicio, se asume una duración de 1 hora
       if (!dtend && item.start_time) {
         const startDate = new Date(`${item.date}T${item.start_time}`);
         const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hora
-        dtend = `:${endDate.toISOString().replace(/-|:|\.\d+/g, '')}Z`;
+        dtend = `:${endDate.toISOString().replace(/-|:|\.\d+/g, '')}`;
       }
-      if (!item.start_time) { // Evento de todo el día
-          const nextDay = new Date(item.date + 'T00:00:00');
-          nextDay.setDate(nextDay.getDate() + 1);
+      // Si no hay hora de inicio, es un evento de todo el día
+      if (!item.start_time) {
+          const nextDay = new Date(item.date + 'T00:00:00Z');
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
           dtend = `;VALUE=DATE:${nextDay.toISOString().slice(0, 10).replace(/-/g, '')}`;
       }
 
       icsString += '\r\nBEGIN:VEVENT';
       icsString += `\r\nUID:${uid}`;
-      icsString += `\r\nDTSTAMP:${dtstamp}`;
+      icsString += `\r\nDTSTAMP:${dtstamp}Z`;
       icsString += `\r\nSUMMARY:${summary}`;
       if (description) icsString += `\r\nDESCRIPTION:${description}`;
       if (location) icsString += `\r\nLOCATION:${location}`;
@@ -107,9 +112,15 @@ serve(async (req) => {
 
     icsString += '\r\nEND:VCALENDAR';
 
-    // 3. ENVIAR LA RESPUESTA
+    // 3. ENVIAR LA RESPUESTA CON CABECERAS DE CONTROL DE CACHÉ
     return new Response(icsString, {
-      headers: { ...corsHeaders, 'Content-Type': 'text/calendar; charset=utf-8' },
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
     })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {

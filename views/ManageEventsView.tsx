@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
 import Modal from '../components/Modal';
@@ -54,6 +55,15 @@ const initialEventFormState: Omit<Event, 'id'> = {
 const TOTAL_STEPS_CREATE = 5; 
 type ModalMode = 'create' | 'edit' | 'view';
 
+const normalizeString = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+};
+
 const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   events, participants, meetingCategories, eventCategories,
   eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories,
@@ -78,11 +88,16 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [tempSelectedEventParticipantIds, setTempSelectedEventParticipantIds] = useState<string[]>([]);
   const [eventParticipantSearchTerm, setEventParticipantSearchTerm] = useState('');
   const eventParticipantSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
+  const [highlightedEventParticipantIndex, setHighlightedEventParticipantIndex] = useState(-1);
+  const eventParticipantListRef = useRef<HTMLDivElement>(null);
+
 
   const [isOrganizerSelectorModalOpen, setIsOrganizerSelectorModalOpen] = useState(false);
   const [tempSelectedOrganizerIdsModal, setTempSelectedOrganizerIdsModal] = useState<string[]>([]);
   const [organizerSearchTermModal, setOrganizerSearchTermModal] = useState('');
   const organizerSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
+  const [highlightedOrganizerIndex, setHighlightedOrganizerIndex] = useState(-1);
+  const organizerListRef = useRef<HTMLDivElement>(null);
 
 
   const getParticipantName = useCallback((id: string) => participants.find(p => p.id === id)?.name || 'Desconocido', [participants]);
@@ -277,8 +292,9 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const availableEventParticipantsForSelector = useMemo(() => {
     if (!eventParticipantSelectionMode) return [];
     const otherModeSelectedIds = eventParticipantSelectionMode === 'attendeesInPerson' ? selectedAttendeesOnline : selectedAttendeesInPerson;
+    const normalizedSearch = normalizeString(eventParticipantSearchTerm);
     return participants
-      .filter(p => p.name.toLowerCase().includes(eventParticipantSearchTerm.toLowerCase()))
+      .filter(p => normalizeString(p.name).includes(normalizedSearch))
       .map(p => ({ ...p, isDisabled: otherModeSelectedIds.includes(p.id) }));
   }, [participants, eventParticipantSearchTerm, eventParticipantSelectionMode, selectedAttendeesInPerson, selectedAttendeesOnline]);
 
@@ -536,6 +552,48 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     return 'Evento';
   };
 
+    // Keyboard navigation for event participants
+    useEffect(() => { if (isEventParticipantSelectorModalOpen) { setHighlightedEventParticipantIndex(-1); setTimeout(() => eventParticipantListRef.current?.focus(), 100); } }, [isEventParticipantSelectorModalOpen]);
+    useEffect(() => { eventParticipantListRef.current?.children[highlightedEventParticipantIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [highlightedEventParticipantIndex]);
+    useEffect(() => { setHighlightedEventParticipantIndex(-1); }, [availableEventParticipantsForSelector]);
+
+    const handleEventParticipantKeyDown = (e: React.KeyboardEvent) => {
+        const participants = availableEventParticipantsForSelector;
+        if (!participants.length) return;
+        switch (e.key) {
+            case 'ArrowDown': e.preventDefault(); setHighlightedEventParticipantIndex(p => (p + 1) % participants.length); break;
+            case 'ArrowUp': e.preventDefault(); setHighlightedEventParticipantIndex(p => (p - 1 + participants.length) % participants.length); break;
+            case 'Enter': case ' ':
+                e.preventDefault();
+                if (highlightedEventParticipantIndex >= 0) {
+                    const p = participants[highlightedEventParticipantIndex];
+                    if (!p.isDisabled) handleToggleEventParticipantSelection(p.id);
+                }
+                break;
+        }
+    };
+    
+    // Keyboard navigation for organizers
+    useEffect(() => { if (isOrganizerSelectorModalOpen) { setHighlightedOrganizerIndex(-1); setTimeout(() => organizerListRef.current?.focus(), 100); } }, [isOrganizerSelectorModalOpen]);
+    useEffect(() => { organizerListRef.current?.children[highlightedOrganizerIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [highlightedOrganizerIndex]);
+    useEffect(() => { setHighlightedOrganizerIndex(-1); }, [availableOrganizersForSelector]);
+
+    const handleOrganizerKeyDown = (e: React.KeyboardEvent) => {
+        const organizers = availableOrganizersForSelector;
+        if (!organizers.length) return;
+        switch (e.key) {
+            case 'ArrowDown': e.preventDefault(); setHighlightedOrganizerIndex(p => (p + 1) % organizers.length); break;
+            case 'ArrowUp': e.preventDefault(); setHighlightedOrganizerIndex(p => (p - 1 + organizers.length) % organizers.length); break;
+            case 'Enter': case ' ':
+                e.preventDefault();
+                if (highlightedOrganizerIndex >= 0) {
+                    handleToggleOrganizerSelection(organizers[highlightedOrganizerIndex].id);
+                }
+                break;
+        }
+    };
+
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -601,21 +659,36 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         </div>
       </Modal>
 
-      {isOrganizerSelectorModalOpen && (<Modal isOpen={isOrganizerSelectorModalOpen} onClose={handleOrganizerSelectionModalClose} title={`Seleccionar ${organizerTypeLabel}`}>
+      <Modal isOpen={isOrganizerSelectorModalOpen} onClose={handleOrganizerSelectionModalClose} title={`Seleccionar ${organizerTypeLabel}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder={`Buscar ${organizerTypeLabel.toLowerCase()}...`} value={organizerSearchTermModal} onChange={(e) => setOrganizerSearchTermModal(e.target.value)} autoFocus />
             {availableOrganizersForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-organizers-modal" ref={organizerSelectAllModalCheckboxRef} onChange={handleSelectAllOrganizersInModal} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /><label htmlFor="select-all-organizers-modal" className="ml-2 text-sm">Seleccionar/Deseleccionar todos los visibles</label></div>)}
-            <div className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1">
-                {availableOrganizersForSelector.map(o => (<div key={o.id} className="flex items-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600"><input type="checkbox" id={`org-select-${o.id}`} checked={tempSelectedOrganizerIdsModal.includes(o.id)} onChange={() => handleToggleOrganizerSelection(o.id)} className="h-4 w-4 text-primary-600 border-gray-300 rounded" /><label htmlFor={`org-select-${o.id}`} className="ml-2 text-sm">{o.name}</label></div>))}
+            <div ref={organizerListRef} tabIndex={-1} onKeyDown={handleOrganizerKeyDown} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                {availableOrganizersForSelector.map((o, index) => {
+                    const isHighlighted = index === highlightedOrganizerIndex;
+                    return (
+                        <div key={o.id} onClick={() => handleToggleOrganizerSelection(o.id)} onMouseEnter={() => setHighlightedOrganizerIndex(index)} className={`flex items-center p-1.5 rounded cursor-pointer ${isHighlighted ? 'bg-primary-100 dark:bg-primary-800' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
+                            <input type="checkbox" id={`org-select-${o.id}`} checked={tempSelectedOrganizerIdsModal.includes(o.id)} readOnly className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
+                            <label htmlFor={`org-select-${o.id}`} className="ml-2 text-sm w-full pointer-events-none">{o.name}</label>
+                        </div>
+                    );
+                })}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleOrganizerSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmOrganizerSelection}>Confirmar Selección</Button></div>
-      </Modal>)}
+      </Modal>
 
-      {isEventParticipantSelectorModalOpen && eventParticipantSelectionMode && (<Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`}>
+      {isEventParticipantSelectorModalOpen && eventParticipantSelectionMode && (<Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder="Buscar participante por nombre..." value={eventParticipantSearchTerm} onChange={(e) => setEventParticipantSearchTerm(e.target.value)} autoFocus />
             {availableEventParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-event-participants-modal" ref={eventParticipantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredEventParticipants} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /><label htmlFor="select-all-event-participants-modal" className="ml-2 text-sm">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}
-            <div className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1">
-              {availableEventParticipantsForSelector.length > 0 ? (availableEventParticipantsForSelector.map(p => (<div key={p.id} className={`flex items-center p-1.5 rounded ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}><input type="checkbox" id={`event-participant-select-${p.id}`} checked={tempSelectedEventParticipantIds.includes(p.id)} onChange={() => !p.isDisabled && handleToggleEventParticipantSelection(p.id)} disabled={p.isDisabled} className="h-4 w-4 text-primary-600" /><label htmlFor={`event-participant-select-${p.id}`} className={`ml-2 text-sm ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled && <span className="text-xs italic">(seleccionado en otra modalidad)</span>}</label></div>))) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
+            <div ref={eventParticipantListRef} tabIndex={-1} onKeyDown={handleEventParticipantKeyDown} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 focus:outline-none focus:ring-2 focus:ring-primary-500">
+              {availableEventParticipantsForSelector.length > 0 ? (availableEventParticipantsForSelector.map((p, index) => {
+                const isHighlighted = index === highlightedEventParticipantIndex;
+                return(
+                <div key={p.id} onClick={() => !p.isDisabled && handleToggleEventParticipantSelection(p.id)} onMouseEnter={() => setHighlightedEventParticipantIndex(index)} className={`flex items-center p-1.5 rounded cursor-pointer ${isHighlighted ? 'bg-primary-100 dark:bg-primary-800' : ''} ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
+                  <input type="checkbox" id={`event-participant-select-${p.id}`} checked={tempSelectedEventParticipantIds.includes(p.id)} readOnly disabled={p.isDisabled} className="h-4 w-4 text-primary-600 pointer-events-none" />
+                  <label htmlFor={`event-participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled && <span className="text-xs italic">(seleccionado en otra modalidad)</span>}</label>
+                </div>
+              )})) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleEventParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmEventParticipantSelection}>Confirmar Selección</Button></div>

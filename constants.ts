@@ -8,6 +8,7 @@ import CompaniesIcon from './components/icons/CompaniesIcon';
 import MeetingCategoriesIcon from './components/icons/CommitteesIcon';
 import EventsIcon from './components/icons/EventsIcon';
 import EventCategoriesIcon from './components/icons/EventCategoriesIcon';
+import StatsIcon from './components/icons/StatsIcon';
 
 export const GALLERY_MENU_ITEMS: MenuItem[] = [
   {
@@ -58,6 +59,13 @@ export const GALLERY_MENU_ITEMS: MenuItem[] = [
     icon: CompaniesIcon,
     viewKey: ViewKey.Companies,
     description: 'Consultar el directorio de empresas afiliadas a la institución.'
+  },
+  {
+    id: 'stats',
+    name: 'Estadísticas',
+    icon: StatsIcon,
+    viewKey: ViewKey.StatsView,
+    description: 'Visualizar estadísticas detalladas sobre asistencia y participación en comisiones.'
   },
 ];
 

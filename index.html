@@ -25,7 +25,14 @@
   <!-- Babel for JSX transpilation in browser (only for development/CDN setup if no build step) -->
   <!-- <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script> -->
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; }
+    body { 
+      margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      background-color: rgb(243 244 246); /* Tailwind's gray-100 */
+    }
+    html.dark body {
+      background-color: rgb(15 23 42); /* Tailwind's slate-900 */
+    }
     /* Removed Recharts specific styles */
   </style>
 <script type="importmap">

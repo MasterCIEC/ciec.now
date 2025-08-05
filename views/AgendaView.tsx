@@ -1,4 +1,4 @@
-// views/AgendaView.tsx
+
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, Event, EventCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
@@ -20,6 +20,7 @@ import GoogleCalendarIcon from '../components/icons/GoogleCalendarIcon';
 import ExternalLinkIcon from '../components/icons/ExternalLinkIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
+import EmailIcon from '../components/icons/EmailIcon';
 
 type CalendarViewMode = 'month' | 'year' | 'week' | 'day';
 
@@ -142,6 +143,45 @@ const AgendaView: React.FC<AgendaViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleSendInvitation = (item: AgendaItem) => {
+    if (item.type !== 'meeting') return;
+
+    const meeting = item.originalMeeting;
+    const attendees = meetingAttendees.filter(ma => ma.meeting_id === meeting.id);
+    const participantEmails = attendees.map(attendee => {
+      const participant = participants.find(p => p.id === attendee.participant_id);
+      return participant?.email;
+    }).filter((email): email is string => !!email);
+
+    if (participantEmails.length === 0) {
+      alert('No hay participantes con correos electrónicos registrados para esta reunión.');
+      return;
+    }
+
+    const to = participantEmails.join(',');
+    const subject = encodeURIComponent(`Invitación: ${meeting.subject}`);
+    
+    const formattedDate = new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const body = encodeURIComponent(
+`Hola,
+
+Estás invitado(a) a la siguiente reunión:
+
+Asunto: ${meeting.subject}
+Fecha: ${formattedDate}
+Hora: ${meeting.startTime || 'No especificada'}${meeting.endTime ? ` - ${meeting.endTime}` : ''}
+Lugar: ${meeting.location || 'No especificado'}
+
+Descripción:
+${meeting.description || 'Sin descripción.'}
+
+Saludos,
+CIEC.Now`
+    );
+
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  };
 
   const getParticipantName = useCallback((id: string) => participants.find(p => p.id === id)?.name || 'Desconocido', [participants]);
   const getMeetingCategoryName = useCallback((id: string) => meetingCategories.find(c => c.id === id)?.name || 'Categoría Desconocida', [meetingCategories]);
@@ -436,8 +476,15 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                           {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                       </div>
                     )}
-                    {item.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
-                    <div className="mt-3 flex justify-end"><Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button></div>
+                    {item.startTime && item.type === 'event' && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
+                    <div className="mt-3 flex justify-end gap-2">
+                        {item.type === 'meeting' && (
+                            <Button onClick={() => handleSendInvitation(item)} variant="secondary" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
+                                <EmailIcon className="w-4 h-4 mr-1"/> Invitar
+                            </Button>
+                        )}
+                        <Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                    </div>
                 </Card>
                 );
             })}
@@ -678,8 +725,15 @@ const AgendaView: React.FC<AgendaViewProps> = ({
                         {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                     </div>
                   )}
-                  {item.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
-                  <div className="mt-3 flex justify-end"><Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button></div>
+                  {item.startTime && item.type === 'event' && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
+                  <div className="mt-3 flex justify-end gap-2">
+                    {item.type === 'meeting' && (
+                        <Button onClick={() => handleSendInvitation(item)} variant="secondary" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
+                            <EmailIcon className="w-4 h-4 mr-1"/> Invitar
+                        </Button>
+                    )}
+                    <Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                  </div>
                 </Card>
                 );
               })}

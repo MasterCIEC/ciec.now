@@ -8,6 +8,8 @@ import Input from '../components/ui/Input';
 // Importación individual y directa de cada icono
 import EyeIcon from '../components/icons/EyeIcon';
 import SearchIcon from '../components/icons/SearchIcon';
+import CopyIcon from '../components/icons/CopyIcon';
+import CheckIcon from '../components/icons/CheckIcon';
 // Importación corregida de los componentes de Card
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 
@@ -25,7 +27,24 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [companyToView, setCompanyToView] = useState<Company | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<string | null>(null);
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
+
+  const handleCopyToClipboard = (text: string | null, identifier: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        setCopiedItem(identifier);
+        setTimeout(() => setCopiedItem(null), 2000);
+    }, (err) => {
+        console.error('Error al copiar texto: ', err);
+        alert('No se pudo copiar el texto.');
+    });
+  };
+  
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setCopiedItem(null);
+  };
 
   const openViewModal = (company: Company) => {
     setCompanyToView(company);
@@ -39,17 +58,16 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
     )
     .sort((a,b) => (a.nombre_establecimiento || '').localeCompare(b.nombre_establecimiento || '')), [companies, searchTerm]);
 
-  const companiesGroupedByLetter = useMemo(() => {
+  const companiesGroupedByMunicipality = useMemo(() => {
     const grouped: Record<string, Company[]> = {};
     filteredCompanies.forEach(company => {
-        const firstLetter = company.nombre_establecimiento.charAt(0).toUpperCase();
-        const key = firstLetter.match(/[A-Z]/) ? firstLetter : '#';
+        const key = company.nombre_municipio || 'Sin Municipio';
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(company);
     });
     const sortedKeys = Object.keys(grouped).sort((a, b) => {
-        if (a === '#') return 1;
-        if (b === '#') return -1;
+        if (a === 'Sin Municipio') return 1;
+        if (b === 'Sin Municipio') return -1;
         return a.localeCompare(b);
     });
     const result: Record<string, Company[]> = {};
@@ -57,35 +75,75 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
     return result;
   }, [filteredCompanies]);
 
-  const letterOrder = useMemo(() => Object.keys(companiesGroupedByLetter), [companiesGroupedByLetter]);
+  const municipalityOrder = useMemo(() => Object.keys(companiesGroupedByMunicipality), [companiesGroupedByMunicipality]);
   
   useEffect(() => {
-    if (letterOrder.length > 0 && (!selectedLetter || !letterOrder.includes(selectedLetter))) {
-        setSelectedLetter(letterOrder[0]);
-    } else if (letterOrder.length === 0) {
-        setSelectedLetter(null);
+    if (municipalityOrder.length > 0 && (!selectedMunicipality || !municipalityOrder.includes(selectedMunicipality))) {
+        setSelectedMunicipality(municipalityOrder[0]);
+    } else if (municipalityOrder.length === 0) {
+        setSelectedMunicipality(null);
     }
-  }, [letterOrder, selectedLetter]);
+  }, [municipalityOrder, selectedMunicipality]);
 
   const getParticipantsCountForCompany = (establecimientoId: string): number => {
     return participants.filter(p => p.id_establecimiento === establecimientoId).length;
   };
 
+  const CopyableField = ({ label, value, identifier }: { label: string, value: string | null, identifier: string }) => {
+    if (!value) return null;
+
+    return (
+        <div className="relative group border-b pb-2 pt-1 dark:border-gray-600">
+            <p><strong>{label}:</strong> {value}</p>
+            <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-1/2 -translate-y-1/2 p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); handleCopyToClipboard(value, identifier); }}
+                aria-label={`Copiar ${label}`}
+            >
+                {copiedItem === identifier ? <CheckIcon className="w-4 h-4 text-green-500" /> : <CopyIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />}
+            </Button>
+        </div>
+    );
+  };
+  
   const renderViewCompanyContent = () => {
-    if (!companyToView) return <p>No hay detalles de empresa para mostrar.</p>;
+    if (!companyToView) return null;
     const c = companyToView;
+
     return (
         <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
-            <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{c.nombre_establecimiento}</h4>
-            <p><strong>RIF:</strong> {c.rif_compania}</p>
-            {c.email_principal && <p><strong>Correo Electrónico:</strong> {c.email_principal}</p>}
-            {c.telefono_principal_1 && <p><strong>Teléfono:</strong> {c.telefono_principal_1}</p>}
-            <p><strong>Participantes Asociados:</strong> {getParticipantsCountForCompany(c.id_establecimiento)}</p>
+            <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400 mb-4">{c.nombre_establecimiento}</h4>
+            <CopyableField label="RIF" value={c.rif_compania} identifier="rif" />
+            <CopyableField label="Correo Electrónico" value={c.email_principal} identifier="email" />
+            <CopyableField label="Teléfono" value={c.telefono_principal_1} identifier="phone" />
+            
+            <div className="pt-2 border-b pb-2 dark:border-gray-600">
+                {c.nombre_municipio && <p><strong>Municipio:</strong> {c.nombre_municipio}</p>}
+            </div>
+             <div className="pt-2">
+              <p><strong>Participantes Asociados:</strong> {getParticipantsCountForCompany(c.id_establecimiento)}</p>
+            </div>
         </div>
     );
   };
 
-  const companiesForSelectedLetter = selectedLetter ? companiesGroupedByLetter[selectedLetter] : [];
+  const handleCopyAll = () => {
+      if (!companyToView) return;
+      const { nombre_establecimiento, rif_compania, email_principal, telefono_principal_1, nombre_municipio } = companyToView;
+      const textToCopy = [
+          `Nombre: ${nombre_establecimiento}`,
+          `RIF: ${rif_compania}`,
+          email_principal ? `Correo: ${email_principal}` : null,
+          telefono_principal_1 ? `Teléfono: ${telefono_principal_1}` : null,
+          nombre_municipio ? `Municipio: ${nombre_municipio}` : null,
+      ].filter(Boolean).join('\n');
+      
+      handleCopyToClipboard(textToCopy, 'all');
+  };
+
+  const companiesForSelectedMunicipality = selectedMunicipality ? companiesGroupedByMunicipality[selectedMunicipality] : [];
 
   return (
     <div className="p-4 sm:p-6 space-y-6 h-full flex flex-col">
@@ -101,24 +159,24 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
       <div className="flex flex-grow gap-6">
         {/* Sidebar */}
         <aside className="w-64 flex-shrink-0 hidden md:block">
-            <div className="sticky top-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Índice Alfabético</h3>
+            <div className="sticky top-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Índice por Municipio</h3>
                 <nav>
                     <ul className="space-y-1 max-h-[70vh] overflow-y-auto">
-                        {letterOrder.length > 0 ? (
-                          letterOrder.map(letter => (
-                            <li key={letter}>
+                        {municipalityOrder.length > 0 ? (
+                          municipalityOrder.map(municipality => (
+                            <li key={municipality}>
                               <button
-                                onClick={() => setSelectedLetter(letter)}
+                                onClick={() => setSelectedMunicipality(municipality)}
                                 className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex justify-between items-center ${
-                                  selectedLetter === letter
+                                  selectedMunicipality === municipality
                                     ? 'bg-primary-600 text-white'
-                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                 }`}
                               >
-                                <span>Letra {letter}</span>
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${ selectedLetter === letter ? 'bg-white/20' : 'bg-gray-200 dark:bg-gray-600'}`}>
-                                  {companiesGroupedByLetter[letter].length}
+                                <span className="truncate">{municipality}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${ selectedMunicipality === municipality ? 'bg-white/20' : 'bg-gray-200 dark:bg-slate-600'}`}>
+                                  {companiesGroupedByMunicipality[municipality].length}
                                 </span>
                               </button>
                             </li>
@@ -157,19 +215,19 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                   </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="md:hidden flex flex-wrap gap-2 mb-4 border-b pb-4 dark:border-gray-700">
-                        {letterOrder.length > 0 ? (
-                        letterOrder.map(letter => (
+                    <div className="md:hidden flex flex-wrap gap-2 mb-4 border-b pb-4 dark:border-slate-700">
+                        {municipalityOrder.length > 0 ? (
+                        municipalityOrder.map(municipality => (
                             <button
-                            key={letter}
-                            onClick={() => setSelectedLetter(letter)}
-                            className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                                selectedLetter === letter
+                            key={municipality}
+                            onClick={() => setSelectedMunicipality(municipality)}
+                            className={`px-3 py-1 flex items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                                selectedMunicipality === municipality
                                 ? 'bg-primary-600 text-white shadow'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-primary-100 dark:hover:bg-primary-800'
+                                : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-primary-100 dark:hover:bg-primary-800'
                             }`}
                             >
-                            {letter}
+                            {municipality}
                             </button>
                         ))
                         ) : (
@@ -178,8 +236,8 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                        <thead className="bg-slate-50 dark:bg-slate-800">
                             <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre del Establecimiento</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RIF</th>
@@ -187,12 +245,12 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                            {companiesForSelectedLetter.length > 0 ? (
-                            companiesForSelectedLetter.map((company) => (
+                        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+                            {companiesForSelectedMunicipality.length > 0 ? (
+                            companiesForSelectedMunicipality.map((company) => (
                                 <tr 
                                 key={company.id_establecimiento} 
-                                className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
+                                className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer"
                                 onClick={() => openViewModal(company)}
                                 >
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -219,7 +277,7 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                             ) : (
                             <tr>
                                 <td colSpan={4} className="text-center py-10 text-gray-500 dark:text-gray-400">
-                                    {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione una letra para ver las empresas.'}
+                                    {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione un municipio para ver las empresas.'}
                                 </td>
                             </tr>
                             )}
@@ -231,10 +289,20 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
         </main>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Detalles de: ${companyToView?.nombre_establecimiento || ''}`}>
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={`Detalles de: ${companyToView?.nombre_establecimiento || ''}`}>
         { renderViewCompanyContent() }
-        <div className="flex justify-end pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button>
+        <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleCopyAll}
+              className="flex items-center text-sm"
+              aria-label="Copiar toda la información de la empresa"
+            >
+              {copiedItem === 'all' ? <CheckIcon className="w-5 h-5 mr-2 text-green-500"/> : <CopyIcon className="w-5 h-5 mr-2" />}
+              {copiedItem === 'all' ? 'Copiado' : 'Copiar Todo'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button>
         </div>
       </Modal>
     </div>

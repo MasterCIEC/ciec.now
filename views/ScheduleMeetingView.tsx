@@ -10,7 +10,7 @@ import Textarea from '../components/ui/Textarea';
 import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
-import AddToGoogleCalendar from '../components/AddToGoogleCalendar';
+import EmailIcon from '../components/icons/EmailIcon';
 import { generateId } from '../constants';
 
 interface ScheduleMeetingViewProps {
@@ -49,6 +49,15 @@ const initialMeetingFormState: Omit<Meeting, 'id'> = {
 const TOTAL_STEPS_CREATE = 4;
 type ModalMode = 'create' | 'edit' | 'view';
 
+const normalizeString = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
+};
+
 const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   meetings,
   participants,
@@ -79,6 +88,9 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   const [tempSelectedParticipantIds, setTempSelectedParticipantIds] = useState<string[]>([]);
   const [participantSearchTerm, setParticipantSearchTerm] = useState('');
   const participantSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
+  const [highlightedParticipantIndex, setHighlightedParticipantIndex] = useState(-1);
+  const participantListRef = useRef<HTMLDivElement>(null);
+
 
   const getParticipantName = (id: string) => participants.find(p => p.id === id)?.name || 'Desconocido';
   const getMeetingCategoryName = useMemo(() => (id: string) => meetingCategories.find(c => c.id === id)?.name || 'Categoría Desconocida', [meetingCategories]);
@@ -165,6 +177,29 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (formErrors[name]) setFormErrors(prev => ({...prev, [name]: ''}));
+  };
+
+  const handleCategoryChangeForCreate = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCategoryId = e.target.value;
+    const newCategoryName = meetingCategories.find(c => c.id === newCategoryId)?.name || '';
+
+    setFormData(prev => {
+        const oldCategoryId = prev.meetingCategoryId;
+        const oldCategoryName = meetingCategories.find(c => c.id === oldCategoryId)?.name || '';
+        const oldDefaultSubject = oldCategoryId ? `Reunión ${oldCategoryName}` : '';
+        
+        const shouldUpdateSubject = !prev.subject.trim() || prev.subject.trim() === oldDefaultSubject.trim();
+
+        return {
+            ...prev,
+            meetingCategoryId: newCategoryId,
+            subject: shouldUpdateSubject ? (newCategoryId ? `Reunión ${newCategoryName}` : '') : prev.subject
+        };
+    });
+
+    if (formErrors.meetingCategoryId) {
+        setFormErrors(prev => ({ ...prev, meetingCategoryId: '' }));
+    }
   };
 
   const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,9 +296,10 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     );
     
     const otherModeSelectedIds = participantSelectionMode === 'attendeesInPerson' ? selectedAttendeesOnline : selectedAttendeesInPerson;
+    const normalizedSearch = normalizeString(participantSearchTerm);
 
     return categoryFilteredParticipants
-      .filter(p => p.name.toLowerCase().includes(participantSearchTerm.toLowerCase()))
+      .filter(p => normalizeString(p.name).includes(normalizedSearch))
       .map(p => ({ ...p, isDisabled: otherModeSelectedIds.includes(p.id) }));
   }, [participants, participantSearchTerm, participantSelectionMode, selectedAttendeesInPerson, selectedAttendeesOnline, formData.meetingCategoryId, participantMeetingCategories]);
 
@@ -329,7 +365,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   }, [meetingsFilteredBySearch, selectedCategoryId]);
 
   const handleBackNavigation = () => { if (onClearEditingMeeting) onClearEditingMeeting(); if (onNavigateBack) onNavigateBack(); };
-
+  
   const isMeetingInProgress = (meeting: Meeting): boolean => {
     if (meeting.endTime) return false;
     try { const now = new Date(); const meetingStartDateTime = new Date(`${meeting.date}T${meeting.startTime}`); return now >= meetingStartDateTime; }
@@ -351,6 +387,43 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     }
   };
 
+  const handleSendInvitation = (meeting: Meeting) => {
+    const attendees = meetingAttendees.filter(ma => ma.meeting_id === meeting.id);
+    const participantEmails = attendees.map(attendee => {
+      const participant = participants.find(p => p.id === attendee.participant_id);
+      return participant?.email;
+    }).filter((email): email is string => !!email);
+
+    if (participantEmails.length === 0) {
+      alert('No hay participantes con correos electrónicos registrados para esta reunión.');
+      return;
+    }
+
+    const to = participantEmails.join(',');
+    const subject = encodeURIComponent(`Invitación: ${meeting.subject}`);
+    
+    const formattedDate = new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const body = encodeURIComponent(
+`Hola,
+
+Estás invitado(a) a la siguiente reunión:
+
+Asunto: ${meeting.subject}
+Fecha: ${formattedDate}
+Hora: ${meeting.startTime || 'No especificada'}${meeting.endTime ? ` - ${meeting.endTime}` : ''}
+Lugar: ${meeting.location || 'No especificado'}
+
+Descripción:
+${meeting.description || 'Sin descripción.'}
+
+Saludos,
+CIEC.Now`
+    );
+
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  };
+
   const renderParticipantSelectionButton = (attendeeList: string[], mode: 'attendeesInPerson' | 'attendeesOnline', label: string) => (
     <div>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
@@ -362,7 +435,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   
   const renderCreateWizardStepContent = () => {
     switch (currentStep) {
-      case 1: return (<div className="space-y-4"><Input label="Asunto de la Reunión" name="subject" value={formData.subject} onChange={handleInputChange} required error={formErrors.subject} autoFocus /><Select label="Categoría de Reunión" name="meetingCategoryId" value={formData.meetingCategoryId} onChange={handleInputChange} options={[{value: '', label: 'Seleccione una categoría'}, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]} required error={formErrors.meetingCategoryId}/></div>);
+      case 1: return (<div className="space-y-4"><Select label="Categoría de Reunión" name="meetingCategoryId" value={formData.meetingCategoryId} onChange={handleCategoryChangeForCreate} options={[{value: '', label: 'Seleccione una categoría'}, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]} required error={formErrors.meetingCategoryId} autoFocus /><Input label="Asunto de la Reunión" name="subject" value={formData.subject} onChange={handleInputChange} required error={formErrors.subject} /></div>);
       case 2: return (<><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div><Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark]" /><Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} error={formErrors.location} /></>);
       case 3: return (<>{renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales (Opcional)')}{renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea (Opcional)')}<Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} /></>);
       case 4: return (<Textarea label="Descripción (Opcional)" name="description" value={formData.description || ''} onChange={handleInputChange} error={formErrors.description} />);
@@ -390,16 +463,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     const attendees = meetingAttendees.filter(ma => ma.meeting_id === meeting.id);
     const inPersonCount = attendees.filter(ma => ma.attendance_type === 'in_person').length;
     const onlineCount = attendees.filter(ma => ma.attendance_type === 'online').length;
-
-    const eventDetailsForCalendar = {
-      title: meeting.subject,
-      startDate: meeting.date,
-      startTime: meeting.startTime!,
-      endTime: meeting.endTime,
-      description: `Categoría: ${getMeetingCategoryName(meeting.meetingCategoryId)}\n\n${meeting.description || ''}`,
-      location: meeting.location || '',
-    };
-
+    
     return (
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{meeting.subject}</h4>
@@ -416,7 +480,6 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
         )}
         {typeof meeting.externalParticipantsCount === 'number' && meeting.externalParticipantsCount > 0 && <p><strong>Participantes Externos:</strong> {meeting.externalParticipantsCount}</p>}
         {meeting.description && <p className="mt-2"><strong>Descripción:</strong> <span className="italic">{`"${meeting.description}"`}</span></p>}
-        {meeting.startTime && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
       </div>
     );
   };
@@ -427,6 +490,37 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     if (modalMode === 'edit') return `Editar Reunión: ${meetingForViewOrEdit?.subject || 'Reunión'}`;
     if (modalMode === 'view') return `Detalles de la Reunión: ${meetingForViewOrEdit?.subject || 'Reunión'}`;
     return 'Reunión';
+  };
+
+  // Keyboard navigation effects
+  useEffect(() => { if (isParticipantSelectorModalOpen) { setHighlightedParticipantIndex(-1); setTimeout(() => participantListRef.current?.focus(), 100); } }, [isParticipantSelectorModalOpen]);
+  useEffect(() => { participantListRef.current?.children[highlightedParticipantIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [highlightedParticipantIndex]);
+  useEffect(() => { setHighlightedParticipantIndex(-1); }, [availableParticipantsForSelector]);
+
+  const handleParticipantKeyDown = (e: React.KeyboardEvent) => {
+    const participants = availableParticipantsForSelector;
+    if (!participants.length) return;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            setHighlightedParticipantIndex(p => (p + 1) % participants.length);
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            setHighlightedParticipantIndex(p => (p - 1 + participants.length) % participants.length);
+            break;
+        case 'Enter':
+        case ' ':
+            e.preventDefault();
+            if (highlightedParticipantIndex >= 0) {
+                const participant = participants[highlightedParticipantIndex];
+                if (!participant.isDisabled) {
+                    handleToggleParticipantSelection(participant.id);
+                }
+            }
+            break;
+    }
   };
 
   return (
@@ -545,16 +639,24 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
         <div className="flex justify-between items-center pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'create' && (<><div>{currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}</div><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Reunión' : 'Siguiente'}</Button></div></>)}
           {modalMode === 'edit' && (<><div /><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button></div></>)}
-          {modalMode === 'view' && meetingForViewOrEdit && (<><Button type="button" variant="danger" onClick={() => handleDeleteInternal(meetingForViewOrEdit.id)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1" /> Eliminar</Button><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1" /> Editar</Button></div></>)}
+          {modalMode === 'view' && meetingForViewOrEdit && (<><div className="flex items-center gap-2"><Button type="button" variant="danger" onClick={() => handleDeleteInternal(meetingForViewOrEdit.id)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1" /> Eliminar</Button><Button type="button" variant="ghost" onClick={() => handleSendInvitation(meetingForViewOrEdit)}><EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo</Button></div><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1" /> Editar</Button></div></>)}
         </div>
       </Modal>
 
       {isParticipantSelectorModalOpen && participantSelectionMode && (
-        <Modal isOpen={isParticipantSelectorModalOpen} onClose={handleParticipantSelectionModalClose} title={`Seleccionar Asistentes ${participantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`}>
+        <Modal isOpen={isParticipantSelectorModalOpen} onClose={handleParticipantSelectionModalClose} title={`Seleccionar Asistentes ${participantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder="Buscar participante por nombre..." value={participantSearchTerm} onChange={(e) => setParticipantSearchTerm(e.target.value)} autoFocus />
             {availableParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-participants-modal" className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700" ref={participantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredParticipants} /><label htmlFor="select-all-participants-modal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}
-            <div className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700">
-              {availableParticipantsForSelector.length > 0 ? (availableParticipantsForSelector.map(p => (<div key={p.id} className={`flex items-center p-1.5 rounded ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}><input type="checkbox" id={`participant-select-${p.id}`} checked={tempSelectedParticipantIds.includes(p.id)} onChange={() => !p.isDisabled && handleToggleParticipantSelection(p.id)} disabled={p.isDisabled} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-200 dark:disabled:bg-gray-600" /><label htmlFor={`participant-select-${p.id}`} className={`ml-2 text-sm ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled ? <span className="text-xs italic">(seleccionado en otra modalidad)</span> : ''}</label></div>))) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{formData.meetingCategoryId ? (participantSearchTerm ? 'No se encontraron participantes.' : 'No hay participantes en esta categoría.') : 'Seleccione una categoría para ver participantes.'}</p>)}
+            <div ref={participantListRef} onKeyDown={handleParticipantKeyDown} tabIndex={-1} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+              {availableParticipantsForSelector.length > 0 ? (availableParticipantsForSelector.map((p, index) => {
+                const isHighlighted = index === highlightedParticipantIndex;
+                return (
+                  <div key={p.id} onClick={() => !p.isDisabled && handleToggleParticipantSelection(p.id)} onMouseEnter={() => setHighlightedParticipantIndex(index)} className={`flex items-center p-1.5 rounded cursor-pointer ${isHighlighted ? 'bg-primary-100 dark:bg-primary-800' : ''} ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
+                      <input type="checkbox" id={`participant-select-${p.id}`} checked={tempSelectedParticipantIds.includes(p.id)} readOnly disabled={p.isDisabled} className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
+                      <label htmlFor={`participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled ? <span className="text-xs italic">(seleccionado en otra modalidad)</span> : ''}</label>
+                  </div>
+                )
+              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{formData.meetingCategoryId ? (participantSearchTerm ? 'No se encontraron participantes.' : 'No hay participantes en esta categoría.') : 'Seleccione una categoría para ver participantes.'}</p>)}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmParticipantSelection}>Confirmar Selección</Button></div>

@@ -3,7 +3,7 @@ import { ModalProps } from '../types';
 import CloseIcon from './icons/CloseIcon';
 import Button from './ui/Button';
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
   useEffect(() => {
     if (isOpen) {
       document.body.classList.add('overflow-hidden');
@@ -18,10 +18,18 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
   if (!isOpen) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-lg',
+    md: 'max-w-2xl',
+    lg: 'max-w-4xl',
+    xl: 'max-w-6xl',
+  };
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-opacity-75 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className={`bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full ${sizeClasses[size] || sizeClasses.md} max-h-[90vh] flex flex-col`}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
           <Button onClick={onClose} variant="ghost" size="sm" className="p-1">
             <CloseIcon className="w-6 h-6 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" />

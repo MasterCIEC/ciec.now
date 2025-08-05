@@ -9,6 +9,7 @@ export enum ViewKey {
   ManageMeetingCategories = 'MANAGE_MEETING_CATEGORIES',
   ManageEvents = 'MANAGE_EVENTS',
   ManageEventCategories = 'MANAGE_EVENT_CATEGORIES',
+  StatsView = 'STATS_VIEW',
 }
 
 export interface MenuItem {
@@ -31,7 +32,7 @@ export interface Company {
   rif_compania: string;
   email_principal: string | null;
   telefono_principal_1: string | null;
-  // Puedes añadir más campos de 'establecimientos_remotos' si los necesitas
+  nombre_municipio: string | null;
 }
 
 // SE ELIMINA este tipo, ya no se usará
@@ -113,6 +114,7 @@ export interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
