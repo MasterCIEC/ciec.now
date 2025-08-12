@@ -27,7 +27,7 @@ export const GALLERY_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'events',
-    name: 'Gestionar Eventos',
+    name: 'Programar Eventos',
     icon: EventsIcon,
     viewKey: ViewKey.ManageEvents,
     description: 'Administrar eventos, ya sean por categoría de reunión o categorías generales, incluyendo detalles financieros.'

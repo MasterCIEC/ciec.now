@@ -317,7 +317,35 @@ const StatsView: React.FC<StatsViewProps> = ({
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {statsForSelectedCategory.participantStats.map(stat => (
+                  <div key={stat.participantId} className="bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-100">{stat.participantName}</h4>
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Asistencia: </span>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">{stat.totalAttended} / {stat.totalMeetings}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Tasa: </span>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">{stat.attendanceRate}%</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Inasistencias: </span>
+                        <span className="font-medium text-red-500">{stat.missed}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Pres./Online: </span>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">{stat.attendedInPerson} / {stat.attendedOnline}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>

@@ -234,8 +234,45 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                         <p className="text-sm text-gray-500 dark:text-gray-400">No hay empresas afiliadas para mostrar.</p>
                         )}
                     </div>
+                    
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-4">
+                      {companiesForSelectedMunicipality.length > 0 ? (
+                        companiesForSelectedMunicipality.map((company) => (
+                          <div 
+                            key={company.id_establecimiento} 
+                            className="bg-slate-50 dark:bg-slate-700/50 shadow-sm rounded-md p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600"
+                            onClick={() => openViewModal(company)}
+                          >
+                            <div className="flex justify-between items-start w-full gap-3">
+                              <div className="flex-grow space-y-0.5">
+                                <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 break-words">{company.nombre_establecimiento}</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">RIF: {company.rif_compania}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-300">Participantes: {getParticipantsCountForCompany(company.id_establecimiento)}</p>
+                              </div>
+                              <div className="flex-shrink-0">
+                                <Button
+                                  onClick={(e) => { e.stopPropagation(); openViewModal(company); }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="p-1.5"
+                                  aria-label={`Ver detalles de ${company.nombre_establecimiento}`}
+                                >
+                                  <EyeIcon className="w-5 h-5" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                          {searchTerm ? 'No hay empresas que coincidan con la búsqueda.' : 'Seleccione un municipio para ver las empresas.'}
+                        </div>
+                      )}
+                    </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                         <thead className="bg-slate-50 dark:bg-slate-800">
                             <tr>

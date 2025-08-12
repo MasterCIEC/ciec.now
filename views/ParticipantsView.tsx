@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { Participant, MeetingCategory, Company, ParticipantMeetingCategory } from '../types';
@@ -9,7 +8,6 @@ import Select from '../components/ui/Select';
 import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
-import ChevronDownIcon from '../components/icons/ChevronDownIcon';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 
 interface ParticipantsViewProps {
@@ -62,16 +60,6 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   const [isLoadingSugerencias, setIsLoadingSugerencias] = useState(false);
   const [affiliationDetailsCache, setAffiliationDetailsCache] = useState(new Map<string, string>());
   const RIF_GREMIO = "J075109112";
-
-  const [expandedCommissions, setExpandedCommissions] = useState<string[]>([]);
-
-  const toggleCommission = (commissionId: string) => {
-    setExpandedCommissions(prev => 
-      prev.includes(commissionId)
-        ? prev.filter(id => id !== commissionId)
-        : [...prev, commissionId]
-    );
-  };
 
   useEffect(() => {
     if (participantToViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
@@ -218,77 +206,40 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   }, [affiliationDetailsCache, RIF_GREMIO]);
 
   const AffiliationDetail: React.FC<{ participant: Participant }> = ({ participant }) => {
-    const [details, setDetails] = useState<string>('Cargando...');
+    const cacheKey = participant.id_establecimiento || 'independent';
+    const cachedValue = affiliationDetailsCache.get(cacheKey);
+  
+    const [details, setDetails] = useState<string>(cachedValue || 'Cargando...');
+  
     useEffect(() => {
-      getParticipantAffiliationDetails(participant).then(setDetails);
-    }, [participant, getParticipantAffiliationDetails]);
+      if (!cachedValue) {
+        getParticipantAffiliationDetails(participant).then(setDetails);
+      } else if (details !== cachedValue) {
+        setDetails(cachedValue);
+      }
+    }, [participant, getParticipantAffiliationDetails, cachedValue, details]);
+  
     return <>{details}</>;
   };
 
-  const groupedParticipants = useMemo(() => {
+  const getCommissionsForParticipant = useCallback((participantId: string): string => {
+    return participantMeetingCategories
+      .filter(pc => pc.participant_id === participantId)
+      .map(pc => meetingCategories.find(mc => mc.id === pc.meeting_category_id)?.name)
+      .filter((name): name is string => !!name)
+      .join(', ');
+  }, [participantMeetingCategories, meetingCategories]);
+
+  const filteredParticipants = useMemo(() => {
     const normalizedSearch = normalizeString(searchTerm);
-
-    const byCommission = meetingCategories.map(commission => {
-      const participantIds = participantMeetingCategories
-        .filter(pc => pc.meeting_category_id === commission.id)
-        .map(pc => pc.participant_id);
-      
-      const commissionParticipants = participants
-        .filter(p => participantIds.includes(p.id))
-        .filter(p => 
-          normalizedSearch === '' ||
-          normalizeString(p.name || '').includes(normalizedSearch) ||
-          normalizeString(p.email || '').includes(normalizedSearch)
-        )
-        .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-      return { commission, participants: commissionParticipants };
-    }).sort((a,b) => a.commission.name.localeCompare(b.commission.name));
-
-    const allAssignedParticipantIds = new Set(participantMeetingCategories.map(pc => pc.participant_id));
-    const unassignedParticipants = participants
-      .filter(p => !allAssignedParticipantIds.has(p.id))
+    return participants
       .filter(p => 
         normalizedSearch === '' ||
         normalizeString(p.name || '').includes(normalizedSearch) ||
         normalizeString(p.email || '').includes(normalizedSearch)
       )
       .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-    return { byCommission, unassignedParticipants };
-  }, [participants, meetingCategories, participantMeetingCategories, searchTerm]);
-
-  const ParticipantTable = ({ participantList }: { participantList: Participant[] }) => (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-        <thead className="bg-slate-50 dark:bg-slate-800">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Afiliación</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
-          {participantList.map(participant => (
-            <tr key={participant.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => openViewModal(participant)}>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300"><AffiliationDetail participant={participant} /></td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                <div>{participant.email || '-'}</div><div>{participant.phone || ''}</div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                <Button onClick={(e) => { e.stopPropagation(); setParticipantToViewOrEdit(participant); setModalMode('edit'); setIsModalOpen(true); }} size="sm" className="!px-2 !py-1" aria-label={`Editar ${participant.name}`}><EditIcon className="w-4 h-4" /></Button>
-                <Button onClick={(e) => { e.stopPropagation(); setParticipantToDelete(participant) }} size="sm" className="!px-2 !py-1" variant="danger" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4" /></Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  }, [participants, searchTerm]);
 
   const getModalTitle = () => {
     if (modalMode === 'add') return 'Añadir Nuevo Participante';
@@ -319,12 +270,14 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
 
   const renderViewParticipantContent = () => {
     if (!participantToViewOrEdit) return null;
+    const commissions = getCommissionsForParticipant(participantToViewOrEdit.id);
     return (<div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{participantToViewOrEdit.name}</h4>
         <p><strong>Afiliación:</strong> <AffiliationDetail participant={participantToViewOrEdit} /></p>
         <p><strong>Rol/Cargo:</strong> {participantToViewOrEdit.role}</p>
         <p><strong>Correo:</strong> {participantToViewOrEdit.email || 'N/A'}</p>
         {participantToViewOrEdit.phone && <p><strong>Teléfono:</strong> {participantToViewOrEdit.phone}</p>}
+        <p><strong>Comisiones Asignadas:</strong> {commissions || 'Ninguna'}</p>
     </div>);
   };
 
@@ -337,44 +290,91 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
           {onNavigateBack && (<Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button>)}
         </div>
       </div>
-      <Input placeholder="Buscar por nombre o correo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mb-4" />
-
-      <div className="space-y-4">
-        {groupedParticipants.byCommission.map(({ commission, participants: commissionParticipants }) => {
-          if (commissionParticipants.length === 0 && searchTerm) return null;
-          const isExpanded = expandedCommissions.includes(commission.id);
-          return (
-            <Card key={commission.id} className="overflow-hidden">
-              <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleCommission(commission.id)} role="button" aria-expanded={isExpanded}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3"><CardTitle>{commission.name}</CardTitle><span className="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-primary-900 dark:text-primary-300">{commissionParticipants.length}</span></div>
-                  <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Directorio de Participantes</CardTitle>
+          <div className="mt-4">
+            <Input placeholder="Buscar por nombre o correo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4 p-4">
+            {filteredParticipants.length > 0 ? (
+              filteredParticipants.map(participant => (
+                <div key={participant.id} className="bg-gray-50 dark:bg-slate-700 shadow-sm rounded-md p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600" onClick={() => openViewModal(participant)} role="button" tabIndex={0} aria-label={`Ver detalles de ${participant.name}`}>
+                  <div className="flex justify-between items-start w-full gap-3">
+                    <div className="flex-grow space-y-0.5">
+                      <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 break-words">{participant.name}</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{participant.role}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-300 truncate">
+                        <strong>Comisiones:</strong> {getCommissionsForParticipant(participant.id) || 'Ninguna'}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 flex items-center space-x-2">
+                      <Button onClick={(e) => { e.stopPropagation(); setParticipantToViewOrEdit(participant); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" className="p-1.5" aria-label={`Editar ${participant.name}`}><EditIcon className="w-4 h-4"/></Button>
+                      <Button onClick={(e) => { e.stopPropagation(); setParticipantToDelete(participant) }} variant="danger" size="sm" className="p-1.5" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4"/></Button>
+                    </div>
+                  </div>
                 </div>
-              </CardHeader>
-              {isExpanded && (<CardContent className="p-0">{commissionParticipants.length > 0 ? <ParticipantTable participantList={commissionParticipants} /> : <p className="p-6 text-sm text-gray-500 dark:text-gray-400">No hay participantes asignados a esta comisión.</p>}</CardContent>)}
-            </Card>
-          );
-        })}
+              ))
+            ) : (
+              <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No se encontraron participantes.</div>
+            )}
+          </div>
 
-        {groupedParticipants.unassignedParticipants.length > 0 && (
-          <Card className="overflow-hidden">
-            <CardHeader className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50" onClick={() => toggleCommission('unassigned')} role="button" aria-expanded={expandedCommissions.includes('unassigned')}>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3"><CardTitle>Participantes Sin Comisión</CardTitle><span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full dark:bg-yellow-900 dark:text-yellow-300">{groupedParticipants.unassignedParticipants.length}</span></div>
-                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedCommissions.includes('unassigned') ? 'rotate-180' : ''}`} />
-              </div>
-            </CardHeader>
-            {expandedCommissions.includes('unassigned') && (<CardContent className="p-0"><ParticipantTable participantList={groupedParticipants.unassignedParticipants} /></CardContent>)}
-          </Card>
-        )}
-      </div>
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+              <thead className="bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Afiliación</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comisiones</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
+                {filteredParticipants.length > 0 ? (
+                  filteredParticipants.map(participant => (
+                    <tr key={participant.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => openViewModal(participant)}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{participant.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300"><AffiliationDetail participant={participant} /></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
+                      <td className="px-6 py-4 whitespace-normal text-sm text-gray-500 dark:text-gray-300 max-w-xs truncate">{getCommissionsForParticipant(participant.id) || 'Ninguna'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <Button onClick={(e) => { e.stopPropagation(); setParticipantToViewOrEdit(participant); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" aria-label={`Editar ${participant.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
+                          <Button onClick={(e) => { e.stopPropagation(); setParticipantToDelete(participant) }} variant="danger" size="sm" aria-label={`Eliminar ${participant.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                      No se encontraron participantes.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         { modalMode === 'view' ? renderViewParticipantContent() : renderFormContent() }
         <div className="flex justify-between items-center pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'view' && participantToViewOrEdit ? (
             <><Button type="button" variant="danger" onClick={() => setParticipantToDelete(participantToViewOrEdit)} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1"/> Eliminar</Button>
-            <div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/> Editar</Button></div></>
+            <div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cerrar</Button><Button type="button" variant="accent" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1"/> Editar</Button></div></>
           ) : (
             <><div /><div className="space-x-3"><Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button><Button type="submit" form="participant-form" variant="primary">{modalMode === 'edit' ? 'Guardar Cambios' : 'Añadir'}</Button></div></>
           )}

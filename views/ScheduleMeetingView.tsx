@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, MeetingAttendee, ParticipantMeetingCategory } from '../types';
 import Modal from '../components/Modal';
@@ -12,6 +10,18 @@ import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import EmailIcon from '../components/icons/EmailIcon';
 import { generateId } from '../constants';
+import PlusCircleIcon from '../components/icons/PlusCircleIcon';
+
+const formatTo12Hour = (timeString: string | null | undefined): string => {
+  if (!timeString) return 'N/A';
+  const [hours, minutes] = timeString.split(':');
+  const h = parseInt(hours, 10);
+  if (isNaN(h) || !minutes) return timeString;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${h12}:${minutes} ${ampm}`;
+};
 
 interface ScheduleMeetingViewProps {
   meetings: Meeting[];
@@ -22,6 +32,7 @@ interface ScheduleMeetingViewProps {
   onAddMeeting: (meeting: Omit<Meeting, 'id'>, attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
   onUpdateMeeting: (meetingId: string, meeting: Omit<Meeting, 'id'>, attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
   onDeleteMeeting: (meetingId: string) => void;
+  onAddMeetingCategory: (category: MeetingCategory) => void;
   initialMeetingToEdit?: Meeting | null;
   onClearEditingMeeting?: () => void;
   onNavigateBack?: () => void;
@@ -67,6 +78,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   onAddMeeting,
   onUpdateMeeting,
   onDeleteMeeting,
+  onAddMeetingCategory,
   initialMeetingToEdit,
   onClearEditingMeeting,
   onNavigateBack,
@@ -91,6 +103,10 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
   const [highlightedParticipantIndex, setHighlightedParticipantIndex] = useState(-1);
   const participantListRef = useRef<HTMLDivElement>(null);
   const [meetingToDelete, setMeetingToDelete] = useState<Meeting | null>(null);
+
+  // State for adding a new meeting category on the fly
+  const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
 
 
   const getParticipantName = (id: string) => participants.find(p => p.id === id)?.name || 'Desconocido';
@@ -395,7 +411,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
     const to = participantEmails.join(',');
     const subject = encodeURIComponent(`Invitación: ${meeting.subject}`);
     
-    const formattedDate = new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const formattedDate = new Date(meeting.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
     const body = encodeURIComponent(
 `Hola,
@@ -404,7 +420,7 @@ Estás invitado(a) a la siguiente reunión:
 
 Asunto: ${meeting.subject}
 Fecha: ${formattedDate}
-Hora: ${meeting.startTime || 'No especificada'}${meeting.endTime ? ` - ${meeting.endTime}` : ''}
+Hora: ${formatTo12Hour(meeting.startTime)}${meeting.endTime ? ` - ${formatTo12Hour(meeting.endTime)}` : ''}
 Lugar: ${meeting.location || 'No especificado'}
 
 Descripción:
@@ -415,6 +431,25 @@ CIEC.Now`
     );
 
     window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  };
+
+  const handleAddNewCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) {
+      alert('El nombre de la categoría no puede estar vacío.');
+      return;
+    }
+    const newId = generateId();
+    const newCategory: MeetingCategory = {
+      id: newId,
+      name: newCategoryName.trim(),
+    };
+
+    onAddMeetingCategory(newCategory);
+    setFormData(prev => ({ ...prev, meetingCategoryId: newId }));
+    
+    setNewCategoryName('');
+    setIsAddCategoryModalOpen(false);
   };
 
   const renderParticipantSelectionButton = (attendeeList: string[], mode: 'attendeesInPerson' | 'attendeesOnline', label: string) => (
@@ -428,7 +463,32 @@ CIEC.Now`
   
   const renderCreateWizardStepContent = () => {
     switch (currentStep) {
-      case 1: return (<div className="space-y-4"><Select label="Categoría de Reunión" name="meetingCategoryId" value={formData.meetingCategoryId} onChange={handleCategoryChangeForCreate} options={[{value: '', label: 'Seleccione una categoría'}, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]} required error={formErrors.meetingCategoryId} autoFocus /><Input label="Asunto de la Reunión" name="subject" value={formData.subject} onChange={handleInputChange} required error={formErrors.subject} /></div>);
+      case 1: return (
+        <div className="space-y-4">
+          <div className="flex items-end gap-2">
+            <Select
+              label="Categoría de Reunión"
+              name="meetingCategoryId"
+              value={formData.meetingCategoryId}
+              onChange={handleCategoryChangeForCreate}
+              options={[{ value: '', label: 'Seleccione una categoría' }, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]}
+              required
+              error={formErrors.meetingCategoryId}
+              autoFocus
+            />
+            <Button
+              type="button"
+              variant="accent"
+              className="mb-1 h-10 w-10 flex-shrink-0 rounded-md p-0"
+              onClick={() => setIsAddCategoryModalOpen(true)}
+              aria-label="Añadir nueva categoría"
+            >
+              <PlusIcon className="w-6 h-6" />
+            </Button>
+          </div>
+          <Input label="Asunto de la Reunión" name="subject" value={formData.subject} onChange={handleInputChange} required error={formErrors.subject} />
+        </div>
+      );
       case 2: return (<><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div><Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark]" /><Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} error={formErrors.location} /></>);
       case 3: return (<>{renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales (Opcional)')}{renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea (Opcional)')}<Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} /></>);
       case 4: return (<Textarea label="Descripción (Opcional)" name="description" value={formData.description || ''} onChange={handleInputChange} error={formErrors.description} />);
@@ -439,7 +499,26 @@ CIEC.Now`
   const renderEditFormContent = () => (
     <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         <Input label="Asunto de la Reunión" name="subject" value={formData.subject} onChange={handleInputChange} required error={formErrors.subject}/>
-        <Select label="Categoría de Reunión" name="meetingCategoryId" value={formData.meetingCategoryId} onChange={handleInputChange} options={[{value: '', label: 'Seleccione una categoría'}, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]} required error={formErrors.meetingCategoryId}/>
+        <div className="flex items-end gap-2">
+          <Select 
+            label="Categoría de Reunión" 
+            name="meetingCategoryId" 
+            value={formData.meetingCategoryId} 
+            onChange={handleInputChange} 
+            options={[{value: '', label: 'Seleccione una categoría'}, ...meetingCategories.map(c => ({ value: c.id, label: c.name }))]} 
+            required 
+            error={formErrors.meetingCategoryId}
+          />
+          <Button
+            type="button"
+            variant="accent"
+            className="mb-1 h-10 w-10 flex-shrink-0 rounded-md p-0"
+            onClick={() => setIsAddCategoryModalOpen(true)}
+            aria-label="Añadir nueva categoría"
+          >
+            <PlusIcon className="w-6 h-6" />
+          </Button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div>
         <div className="flex items-end gap-2"><Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark] grow" /><Button type="button" variant="secondary" size="sm" onClick={() => { const now = new Date(); setFormData(prev => ({ ...prev, endTime: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}` })); if (formErrors.endTime) setFormErrors(prev => ({...prev, endTime: ''})); }} className="mb-1" aria-label="Fijar hora de fin actual">Fijar Actual</Button></div>
         <Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} error={formErrors.location} />
@@ -461,8 +540,8 @@ CIEC.Now`
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{meeting.subject}</h4>
         <p><strong>Categoría de Reunión:</strong> {getMeetingCategoryName(meeting.meetingCategoryId)}</p>
-        <p><strong>Fecha:</strong> {new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        <p><strong>Hora:</strong> {meeting.startTime || 'N/A'} {meeting.endTime ? `- ${meeting.endTime}` : '(En curso)'}</p>
+        <p><strong>Fecha:</strong> {new Date(meeting.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</p>
+        <p><strong>Hora:</strong> {formatTo12Hour(meeting.startTime)} {meeting.endTime ? `- ${formatTo12Hour(meeting.endTime)}` : '(En curso)'}</p>
         {meeting.location && <p><strong>Lugar:</strong> {meeting.location}</p>}
         {(inPersonCount > 0 || onlineCount > 0) && (
           <div className="pt-2 mt-2 border-t dark:border-gray-600">
@@ -569,13 +648,13 @@ CIEC.Now`
                       <div className="flex-grow space-y-0.5">
                         <h3 className="text-md font-semibold text-primary-700 dark:text-primary-400 break-words">{meeting.subject}</h3>
                         <p className="text-xs text-gray-600 dark:text-gray-300"><strong>Categoría:</strong> {getMeetingCategoryName(meeting.meetingCategoryId)}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Fecha:</strong> {new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Hora:</strong> {meeting.startTime || 'N/A'}{meeting.endTime ? ` - ${meeting.endTime}` : ' (En curso)'}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Fecha:</strong> {new Date(meeting.date).toLocaleDateString('es-ES', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Hora:</strong> {formatTo12Hour(meeting.startTime)}{meeting.endTime ? ` - ${formatTo12Hour(meeting.endTime)}` : ' (En curso)'}</p>
                       </div>
-                      <div className="flex-shrink-0 flex flex-col space-y-1.5 items-end">
-                        {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" className="py-1 px-2 text-xs" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
-                        <Button onClick={(e)=>{e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true);}} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
-                        <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="ghost" className="py-1 px-2 text-xs w-full max-w-[100px] flex items-center justify-center text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
+                      <div className="flex-shrink-0 flex flex-col items-stretch gap-2">
+                          {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" className="!py-1 !px-2 !text-xs justify-center" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
+                          <Button onClick={(e)=>{e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true);}} variant="accent" size="sm" className="!py-1 !px-2 !text-xs justify-center" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
+                          <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="danger" size="sm" className="!py-1 !px-2 !text-xs justify-center" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
                       </div>
                     </div>
                   </div>
@@ -584,8 +663,8 @@ CIEC.Now`
 
               {/* Desktop Table View */}
               <div className="hidden md:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-2/5">Asunto</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Categoría</th>
@@ -593,24 +672,24 @@ CIEC.Now`
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                     {filteredMeetings.map(meeting => (
                       <tr key={meeting.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer" onClick={() => handleOpenViewModal(meeting)} role="button" tabIndex={0} aria-label={`Ver detalles de ${meeting.subject}`}>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100" title={meeting.subject}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100" title={meeting.subject}>
                           {meeting.subject}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300" title={getMeetingCategoryName(meeting.meetingCategoryId)}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300" title={getMeetingCategoryName(meeting.meetingCategoryId)}>
                             {getMeetingCategoryName(meeting.meetingCategoryId)}
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                          {new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          <span className="ml-2">{meeting.startTime || 'N/A'}{meeting.endTime ? ` - ${meeting.endTime}` : ' (En curso)'}</span>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                          {new Date(meeting.date).toLocaleDateString('es-ES', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          <span className="ml-2">{formatTo12Hour(meeting.startTime)}{meeting.endTime ? ` - ${formatTo12Hour(meeting.endTime)}` : ' (En curso)'}</span>
                         </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
-                              {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" className="!py-1 !px-2 text-xs" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
-                              <Button onClick={(e) => { e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true); }} variant="ghost" size="sm" className="!p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-700/30" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-4 h-4" /></Button>
-                              <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="ghost" size="sm" className="!p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-700/30" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-4 h-4" /></Button>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+                              {isMeetingInProgress(meeting) && (<Button onClick={(e) => { e.stopPropagation(); handleEndMeetingNow(meeting.id);}} variant="primary" size="sm" aria-label={`Finalizar ${meeting.subject}`}>Finalizar</Button>)}
+                              <Button onClick={(e) => { e.stopPropagation(); setMeetingForViewOrEdit(meeting); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" aria-label={`Editar ${meeting.subject}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
+                              <Button onClick={(e) => { e.stopPropagation(); setMeetingToDelete(meeting); }} variant="danger" size="sm" aria-label={`Eliminar ${meeting.subject}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
                           </div>
                         </td>
                     </tr>))}
@@ -630,9 +709,34 @@ CIEC.Now`
           {modalMode === 'view' && renderViewMeetingContent()}
         </div>
         <div className="flex justify-between items-center pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
-          {modalMode === 'create' && (<><div>{currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}</div><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Reunión' : 'Siguiente'}</Button></div></>)}
-          {modalMode === 'edit' && (<><div /><div className="space-x-3"><Button type="button" variant="ghost" onClick={handleCloseModal}>Cancelar</Button><Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button></div></>)}
-          {modalMode === 'view' && meetingForViewOrEdit && (<><div className="flex items-center gap-2"><Button type="button" variant="danger" onClick={() => { if(meetingForViewOrEdit) setMeetingToDelete(meetingForViewOrEdit); }} className="mr-auto"><TrashIcon className="w-4 h-4 mr-1" /> Eliminar</Button><Button type="button" variant="ghost" onClick={() => handleSendInvitation(meetingForViewOrEdit)}><EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo</Button></div><div className="space-x-3"><Button type="button" variant="secondary" onClick={handleCloseModal}>Cerrar</Button><Button type="button" variant="primary" onClick={switchToEditModeFromView}><EditIcon className="w-4 h-4 mr-1" /> Editar</Button></div></>)}
+          {modalMode === 'create' && (
+            <>
+              <Button type="button" variant="danger" onClick={handleCloseModal}>Cancelar</Button>
+              <div className="flex items-center space-x-3">
+                {currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}
+                <Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Reunión' : 'Siguiente'}</Button>
+              </div>
+            </>
+          )}
+          {modalMode === 'edit' && (
+            <>
+              <Button type="button" variant="danger" onClick={handleCloseModal}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button>
+            </>
+          )}
+          {modalMode === 'view' && meetingForViewOrEdit && (
+            <div className="w-full flex flex-col sm:flex-row items-center gap-2">
+                <Button type="button" variant="info" onClick={() => handleSendInvitation(meetingForViewOrEdit)} className="w-full sm:flex-1">
+                    <EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo
+                </Button>
+                <Button type="button" variant="danger" onClick={() => { if(meetingForViewOrEdit) setMeetingToDelete(meetingForViewOrEdit); }} className="w-full sm:flex-1">
+                    <TrashIcon className="w-4 h-4 mr-1" /> Eliminar
+                </Button>
+                <Button type="button" variant="accent" onClick={switchToEditModeFromView} className="w-full sm:flex-1">
+                    <EditIcon className="w-4 h-4 mr-1" /> Editar
+                </Button>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -683,6 +787,22 @@ CIEC.Now`
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal isOpen={isAddCategoryModalOpen} onClose={() => setIsAddCategoryModalOpen(false)} title="Añadir Nueva Categoría de Reunión">
+        <form onSubmit={handleAddNewCategory} id="add-category-form" className="space-y-4">
+          <Input
+            label="Nombre de la Categoría"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            required
+            autoFocus
+          />
+        </form>
+        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+          <Button variant="secondary" onClick={() => setIsAddCategoryModalOpen(false)}>Cancelar</Button>
+          <Button variant="primary" type="submit" form="add-category-form">Guardar Categoría</Button>
+        </div>
       </Modal>
     </div>
   );

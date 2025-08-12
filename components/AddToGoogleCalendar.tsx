@@ -66,21 +66,22 @@ const AddToGoogleCalendar: React.FC<AddToGoogleCalendarProps> = ({ eventDetails 
   return (
     <div className="mt-3 pt-3 border-t dark:border-gray-600">
       <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Añadir a Calendario</h4>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <Input 
           type="email"
           placeholder="Tu correo para invitar (opcional)"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onClick={(e) => e.stopPropagation()}
-          className="text-xs flex-grow"
+          className="text-xs"
+          containerClassName="flex-grow"
           aria-label="Correo para invitación de calendario"
         />
         <Button 
           onClick={handleAddToCalendar} 
           variant="secondary" 
           size="sm" 
-          className="flex-shrink-0"
+          className="sm:flex-shrink-0"
           aria-label="Añadir a Google Calendar"
         >
           <GoogleCalendarIcon className="w-4 h-4 mr-1.5" />

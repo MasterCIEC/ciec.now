@@ -1,8 +1,10 @@
 
 
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, Event, EventCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
-import { Card } from '../components/ui/Card'; // Importación Corregida
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Modal from '../components/Modal';
 import Select from '../components/ui/Select';
@@ -21,6 +23,17 @@ import ExternalLinkIcon from '../components/icons/ExternalLinkIcon';
 import ChevronLeftIcon from '../components/icons/ChevronLeftIcon';
 import ChevronRightIcon from '../components/icons/ChevronRightIcon';
 import EmailIcon from '../components/icons/EmailIcon';
+
+const formatTo12Hour = (timeString: string | null | undefined): string => {
+  if (!timeString) return 'N/A';
+  const [hours, minutes] = timeString.split(':');
+  const h = parseInt(hours, 10);
+  if (isNaN(h) || !minutes) return timeString;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${h12}:${minutes} ${ampm}`;
+};
 
 type CalendarViewMode = 'month' | 'year' | 'week' | 'day';
 
@@ -144,37 +157,51 @@ const AgendaView: React.FC<AgendaViewProps> = ({
   }, []);
 
   const handleSendInvitation = (item: AgendaItem) => {
-    if (item.type !== 'meeting') return;
+    let attendees: { participant_id: string }[];
+    let itemDetails: { subject: string, date: string, startTime: string | null, endTime?: string, location?: string | null, description?: string | null };
+    let itemTypeName: string;
 
-    const meeting = item.originalMeeting;
-    const attendees = meetingAttendees.filter(ma => ma.meeting_id === meeting.id);
+    if (item.type === 'meeting') {
+        const meeting = item.originalMeeting;
+        attendees = meetingAttendees.filter(ma => ma.meeting_id === meeting.id);
+        itemDetails = meeting;
+        itemTypeName = "reunión";
+    } else if (item.type === 'event') {
+        const event = item.originalEvent;
+        attendees = eventAttendees.filter(ea => ea.event_id === event.id);
+        itemDetails = event;
+        itemTypeName = "evento";
+    } else {
+        return;
+    }
+
     const participantEmails = attendees.map(attendee => {
-      const participant = participants.find(p => p.id === attendee.participant_id);
-      return participant?.email;
-    }).filter((email): email is string => !!email);
+        const participant = participants.find(p => p.id === attendee.participant_id);
+        return participant?.email;
+    }).filter((email): email is string => !!email && email.trim() !== '');
 
     if (participantEmails.length === 0) {
-      alert('No hay participantes con correos electrónicos registrados para esta reunión.');
-      return;
+        alert(`No hay participantes con correos electrónicos registrados para este ${itemTypeName}.`);
+        return;
     }
 
     const to = participantEmails.join(',');
-    const subject = encodeURIComponent(`Invitación: ${meeting.subject}`);
+    const subject = encodeURIComponent(`Invitación: ${itemDetails.subject}`);
     
-    const formattedDate = new Date(meeting.date + 'T00:00:00Z').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const formattedDate = new Date(itemDetails.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
     const body = encodeURIComponent(
 `Hola,
 
-Estás invitado(a) a la siguiente reunión:
+Estás invitado(a) al siguiente ${itemTypeName}:
 
-Asunto: ${meeting.subject}
+Asunto: ${itemDetails.subject}
 Fecha: ${formattedDate}
-Hora: ${meeting.startTime || 'No especificada'}${meeting.endTime ? ` - ${meeting.endTime}` : ''}
-Lugar: ${meeting.location || 'No especificado'}
+Hora: ${formatTo12Hour(itemDetails.startTime)}${itemDetails.endTime ? ` - ${formatTo12Hour(itemDetails.endTime)}` : ''}
+Lugar: ${itemDetails.location || 'No especificado'}
 
 Descripción:
-${meeting.description || 'Sin descripción.'}
+${itemDetails.description || 'Sin descripción.'}
 
 Saludos,
 CIEC.Now`
@@ -307,7 +334,7 @@ CIEC.Now`
     const firstDayOffset = getFirstDayOfMonth(year, month); const daysInThisMonth = getDaysInMonth(year, month);
     const today = new Date(); const cells = [];
 
-    for (let i = 0; i < firstDayOffset; i++) cells.push(<div key={`empty-start-${i}`} className="border dark:border-gray-700 p-1 sm:p-2 h-24 sm:h-32 bg-gray-50 dark:bg-gray-800/30"></div>);
+    for (let i = 0; i < firstDayOffset; i++) cells.push(<div key={`empty-start-${i}`} className="border dark:border-gray-700 p-1 sm:p-2 h-20 sm:h-28 lg:h-32 bg-gray-50 dark:bg-gray-800/30"></div>);
 
     for (let day = 1; day <= daysInThisMonth; day++) {
       const cellDate = new Date(year, month, day); const dateKey = formatDateToYYYYMMDD(cellDate);
@@ -316,7 +343,7 @@ CIEC.Now`
 
       cells.push(
         <div key={`day-${day}`} 
-          className={`border dark:border-gray-700 p-1 sm:p-2 h-24 sm:h-32 cursor-pointer transition-colors duration-150 flex flex-col justify-start items-start overflow-hidden ${isToday ? 'bg-primary-100 dark:bg-primary-800/30' : 'bg-white dark:bg-gray-800'} hover:bg-primary-50 dark:hover:bg-gray-700`}
+          className={`border dark:border-gray-700 p-1 sm:p-2 h-20 sm:h-28 lg:h-32 cursor-pointer transition-colors duration-150 flex flex-col justify-start items-start overflow-hidden ${isToday ? 'bg-primary-100 dark:bg-primary-800/30' : 'bg-white dark:bg-gray-800'} hover:bg-primary-50 dark:hover:bg-gray-700`}
           onClick={() => handleDayCellClick(new Date(year, month, day))} 
           onContextMenu={(e) => handleDayContextMenu(e, new Date(year, month, day))}
           role="button" tabIndex={0} aria-label={`Ver actividades para ${day} de ${monthName}`}>
@@ -326,8 +353,8 @@ CIEC.Now`
               {itemsOnDay.slice(0, maxVisibleItems).map(item => {
                 const bgColor = item.type === 'meeting' ? 'bg-primary-500 dark:bg-primary-600' : 'bg-green-500 dark:bg-green-600';
                 const organizerName = item.type === 'meeting' ? getMeetingCategoryName(item.meetingCategoryId) : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
-                const title = `${item.subject} (${organizerName}) a las ${item.startTime || 'N/A'}`;
-                 return (<div key={item.id} className={`text-xxs sm:text-xs p-0.5 rounded ${bgColor} text-white truncate`} title={title}><p className="font-semibold truncate leading-tight">{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p><p className="text-xxs truncate leading-tight">{item.startTime || 'N/A'}</p></div>)
+                const title = `${item.subject} (${organizerName}) a las ${formatTo12Hour(item.startTime)}`;
+                 return (<div key={item.id} className={`text-xxs sm:text-xs p-0.5 rounded ${bgColor} text-white truncate`} title={title}><p className="font-semibold truncate leading-tight">{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p><p className="text-xxs truncate leading-tight">{formatTo12Hour(item.startTime)}</p></div>)
               })}
               {itemsOnDay.length > maxVisibleItems && (<span className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-0.5 block">+{itemsOnDay.length - maxVisibleItems} más</span>)}
             </div>
@@ -391,11 +418,11 @@ CIEC.Now`
                     {itemsOnDay.slice(0, maxVisibleItems).map(item => {
                         const bgColor = item.type === 'meeting' ? 'bg-primary-500 dark:bg-primary-600' : 'bg-green-500 dark:bg-green-600';
                         const organizerName = item.type === 'meeting' ? getMeetingCategoryName(item.meetingCategoryId) : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
-                        const title = `${item.subject} (${organizerName}) a las ${item.startTime || 'N/A'}`;
+                        const title = `${item.subject} (${organizerName}) a las ${formatTo12Hour(item.startTime)}`;
                         return (
                             <div key={item.id} className={`text-xs p-1 rounded ${bgColor} text-white truncate cursor-pointer hover:opacity-80`} title={title} onClick={() => handleOpenDayDetailsModal(dayDate)}>
                                 <p className="font-semibold truncate leading-tight">{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p>
-                                <p className="text-xxs truncate leading-tight">{item.startTime || 'N/A'}: {item.subject}</p>
+                                <p className="text-xxs truncate leading-tight">{formatTo12Hour(item.startTime)}: {item.subject}</p>
                             </div>
                         );
                     })}
@@ -427,7 +454,7 @@ CIEC.Now`
                 const itemTypeLabel = item.type === 'meeting' ? 'Reunión' : 'Evento';
                 const titleColor = item.type === 'meeting' ? 'text-primary-700 dark:text-primary-400' : 'text-green-700 dark:text-green-400';
                 
-                const organizerLabel = item.type === 'meeting' ? 'Categoría de Reunión' : 'Organizador';
+                const organizerLabel = item.type === 'meeting' ? 'Categoría de Reunión' : 'Categoría';
                 const organizerNameDisplay = item.type === 'meeting' 
                     ? getMeetingCategoryName((item as MeetingAgendaItem).meetingCategoryId) 
                     : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
@@ -440,19 +467,10 @@ CIEC.Now`
 
                 const editHandler = () => { if (item.type === 'meeting') onEditMeeting(item.originalMeeting); else onEditEvent(item.originalEvent); };
 
-                 const eventDetailsForCalendar = {
-                    title: item.subject,
-                    startDate: item.date,
-                    startTime: item.startTime!,
-                    endTime: item.endTime,
-                    description: `Organizador: ${organizerNameDisplay}\n\n${item.description || ''}`,
-                    location: item.location || '',
-                };
-
                 return (
                 <Card key={item.id} className="bg-white dark:bg-gray-700/80 hover:shadow-lg transition-shadow p-4">
                     <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {item.startTime || 'N/A'} {item.endTime ? `- ${item.endTime}` : '(Hora de fin no definida)'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}` : '(Hora de fin no definida)'}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                     {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
                     
@@ -476,14 +494,13 @@ CIEC.Now`
                           {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                       </div>
                     )}
-                    {item.startTime && item.type === 'event' && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
                     <div className="mt-3 flex justify-end gap-2">
-                        {item.type === 'meeting' && (
-                            <Button onClick={() => handleSendInvitation(item)} variant="secondary" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
+                        {(item.type === 'meeting' || item.type === 'event') && (
+                            <Button onClick={() => handleSendInvitation(item)} variant="info" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
                                 <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                             </Button>
                         )}
-                        <Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                        <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
                     </div>
                 </Card>
                 );
@@ -587,17 +604,20 @@ CIEC.Now`
       
        <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-3 bg-white dark:bg-gray-800/50 rounded-lg shadow-md mb-4">
           {/* Left group: Navigation */}
-          <div className="flex items-center gap-2">
-              <Button onClick={() => handleNavigation('today')} variant="primary" size="md" className="!px-5 !py-2.5 font-bold shadow-lg" aria-label="Ir a hoy">Hoy</Button>
-              <Button onClick={() => handleNavigation('prev')} variant="secondary" size="md" className="!p-2.5" aria-label="Anterior">
-                  <ChevronLeftIcon className="h-5 w-5" />
+          <div className="flex flex-col items-center md:items-start gap-2">
+              <Button onClick={() => setIsSubscriptionModalOpen(true)} variant="accent" size="md" className="w-full md:w-auto font-bold shadow-lg">
+                  <CalendarSyncIcon className="h-5 w-5 mr-2" />
+                  Sincronizar con calendario
               </Button>
-              <Button onClick={() => handleNavigation('next')} variant="secondary" size="md" className="!p-2.5" aria-label="Siguiente">
-                  <ChevronRightIcon className="h-5 w-5" />
-              </Button>
-              <Button onClick={() => setIsSubscriptionModalOpen(true)} variant="secondary" size="md" className="!p-2.5" aria-label="Suscribirse al calendario">
-                  <CalendarSyncIcon className="h-5 w-5" />
-              </Button>
+              <div className="flex items-center gap-2">
+                  <Button onClick={() => handleNavigation('today')} variant="secondary" size="md" aria-label="Ir a hoy">Hoy</Button>
+                  <Button onClick={() => handleNavigation('prev')} variant="secondary" size="md" className="!p-2.5" aria-label="Anterior">
+                      <ChevronLeftIcon className="h-5 w-5" />
+                  </Button>
+                  <Button onClick={() => handleNavigation('next')} variant="secondary" size="md" className="!p-2.5" aria-label="Siguiente">
+                      <ChevronRightIcon className="h-5 w-5" />
+                  </Button>
+              </div>
           </div>
 
           {/* Center group: Title */}
@@ -675,7 +695,7 @@ CIEC.Now`
                 const itemTypeLabel = item.type === 'meeting' ? 'Reunión' : 'Evento';
                 const titleColor = item.type === 'meeting' ? 'text-primary-700 dark:text-primary-400' : 'text-green-700 dark:text-green-400';
                 
-                const organizerLabel = item.type === 'meeting' ? 'Categoría de Reunión' : 'Organizador';
+                const organizerLabel = item.type === 'meeting' ? 'Categoría de Reunión' : 'Categoría';
                 const organizerNameDisplay = item.type === 'meeting' 
                     ? getMeetingCategoryName((item as MeetingAgendaItem).meetingCategoryId) 
                     : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
@@ -687,21 +707,11 @@ CIEC.Now`
                 const onlineNames = attendeesForThisItem.filter(a => a.attendance_type === 'online').map(a => getParticipantName(a.participant_id)).join(', ');
 
                 const editHandler = () => { if (item.type === 'meeting') onEditMeeting(item.originalMeeting); else onEditEvent(item.originalEvent); setIsDayModalOpen(false); };
-                
-                 const eventDetailsForCalendar = {
-                    title: item.subject,
-                    startDate: item.date,
-                    startTime: item.startTime!,
-                    endTime: item.endTime,
-                    description: `Organizador: ${organizerNameDisplay}\n\n${item.description || ''}`,
-                    location: item.location || '',
-                };
-
 
                 return (
                 <Card key={item.id} className="bg-gray-50 dark:bg-gray-700 hover:shadow-lg transition-shadow p-4">
                   <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {item.startTime || 'N/A'} {item.endTime ? `- ${item.endTime}`: '(Hora de fin no definida)'}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}`: '(Hora de fin no definida)'}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                   {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
                   
@@ -725,14 +735,13 @@ CIEC.Now`
                         {typeof (item as EventAgendaItem).revenue === 'number' && <p className="text-xs text-gray-600 dark:text-gray-300">Ingresos: $ {(item as EventAgendaItem).revenue!.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                     </div>
                   )}
-                  {item.startTime && item.type === 'event' && <AddToGoogleCalendar eventDetails={eventDetailsForCalendar} />}
                   <div className="mt-3 flex justify-end gap-2">
-                    {item.type === 'meeting' && (
-                        <Button onClick={() => handleSendInvitation(item)} variant="secondary" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
+                    {(item.type === 'meeting' || item.type === 'event') && (
+                        <Button onClick={() => handleSendInvitation(item)} variant="info" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
                             <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                         </Button>
                     )}
-                    <Button onClick={editHandler} variant="ghost" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                    <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
                   </div>
                 </Card>
                 );

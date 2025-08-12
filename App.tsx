@@ -722,6 +722,7 @@ const App = (): JSX.Element => {
           onUpdateMeeting={handleUpdateMeeting}
           onDeleteMeeting={handleDeleteMeeting}
           initialMeetingToEdit={meetingToEdit}
+          onAddMeetingCategory={handleAddMeetingCategory}
           onClearEditingMeeting={clearEditingMeeting}
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
@@ -784,8 +785,11 @@ const App = (): JSX.Element => {
           onUpdateEvent={handleUpdateEvent}
           onDeleteEvent={handleDeleteEvent}
           initialEventToEdit={eventToEdit}
+          onAddMeetingCategory={handleAddMeetingCategory}
+          onAddEventCategory={handleAddEventCategory}
           onClearEditingEvent={clearEditingEvent}
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+          companies={companies}
         />;
       case ViewKey.ManageEventCategories:
         return <ManageEventCategoriesView
