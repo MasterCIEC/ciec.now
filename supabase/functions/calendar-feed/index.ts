@@ -4,50 +4,36 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Encabezados CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey'
 };
 
-serve(async (req: Request): Promise<Response> => {
+const formatIcsText = (text: string | null) => {
+  if (!text) return '';
+  return text.replace(/,/g, '\\,').replace(/\n/g, '\\n');
+};
+
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: corsHeaders
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      // Usamos la clave anónima (anon key) ya que le dimos permisos a la vista
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
 
-    // 1. OBTENER LOS DATOS
-    const { data: meetings, error: meetingsError } = await supabaseClient.from('Meetings').select('subject, date, start_time, end_time, location, description');
-    const { data: events, error: eventsError } = await supabaseClient.from('Events').select('subject, date, start_time, end_time, location, description');
+    // 1. OBTENER DATOS PRE-FORMATEADOS DE LA VISTA
+    const { data: calendarItems, error } = await supabaseClient
+      .from('calendar_feed_data')
+      .select('*');
 
-    if (meetingsError) throw meetingsError;
-    if (eventsError) throw eventsError;
+    if (error) throw error;
 
-    // 2. FORMATEAR A iCALENDAR (.ics)
-    const formatIcsText = (text: string | null)=>{
-      if (!text) return '';
-      return text.replace(/,/g, '\\,').replace(/\n/g, '\\n');
-    };
-
-    const formatIcsDateTime = (dateStr: string, timeStr: string | null)=>{
-      if (!timeStr) {
-        // Evento de todo el día
-        const datePart = dateStr.replace(/-/g, '');
-        return `;VALUE=DATE:${datePart}`;
-      }
-      // ✨ MODIFICADO: Crear un objeto Date asumiendo que la entrada es UTC
-      const utcDate = new Date(`${dateStr}T${timeStr}:00Z`);
-      if (isNaN(utcDate.getTime())) {
-        return ''; // Manejar fecha/hora inválida
-      }
-      // Formatea a "YYYYMMDDTHHMMSSZ"
-      return `:${utcDate.toISOString().replace(/-|:|\.\d+/g, '')}`;
-    };
-
+    // 2. CONSTRUIR EL STRING iCALENDAR
     let icsString = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -58,34 +44,13 @@ serve(async (req: Request): Promise<Response> => {
       'X-WR-CALDESC:Calendario de eventos y reuniones de CIEC.Now'
     ].join('\r\n');
 
-    const allItems = [
-      ...meetings || [],
-      ...events || []
-    ];
+    const dtstamp = new Date().toISOString().replace(/-|:|\.\d+/g, '') + 'Z';
 
-    allItems.forEach((item, index)=>{
-      const uid = `${item.date}-${index}@ciec.now`;
-      const dtstamp = new Date().toISOString().replace(/-|:|\.\d+/g, '') + 'Z';
+    calendarItems.forEach((item) => {
+      const uid = `${item.item_type}-${item.id}@ciec.now`;
       const summary = formatIcsText(item.subject);
       const description = formatIcsText(item.description);
       const location = formatIcsText(item.location);
-      const dtstart = formatIcsDateTime(item.date, item.start_time);
-      let dtend = item.end_time ? formatIcsDateTime(item.date, item.end_time) : '';
-      
-      if (!dtend && item.start_time) {
-        // Si no hay hora de fin, se asume 1 hora de duración.
-        // ✨ MODIFICADO: usar UTC directamente
-        const startDate = new Date(`${item.date}T${item.start_time}:00Z`);
-        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // +1 hora
-        dtend = `:${endDate.toISOString().replace(/-|:|\.\d+/g, '')}`;
-      } else if (!item.start_time) {
-        // DTEND para un evento de todo el día debe ser el inicio del día siguiente.
-        // ✨ MODIFICADO: usar UTC directamente
-        const date = new Date(item.date + 'T00:00:00Z');
-        date.setUTCDate(date.getUTCDate() + 1);
-        const nextDateStr = date.toISOString().slice(0, 10);
-        dtend = formatIcsDateTime(nextDateStr, null);
-      }
 
       icsString += '\r\nBEGIN:VEVENT';
       icsString += `\r\nUID:${uid}`;
@@ -93,8 +58,15 @@ serve(async (req: Request): Promise<Response> => {
       icsString += `\r\nSUMMARY:${summary}`;
       if (description) icsString += `\r\nDESCRIPTION:${description}`;
       if (location) icsString += `\r\nLOCATION:${location}`;
-      if (dtstart) icsString += `\r\nDTSTART${dtstart}`;
-      if (dtend) icsString += `\r\nDTEND${dtend}`;
+
+      if (item.is_all_day) {
+        icsString += `\r\nDTSTART;VALUE=DATE:${item.allday_dtstart}`;
+        icsString += `\r\nDTEND;VALUE=DATE:${item.allday_dtend}`;
+      } else {
+        icsString += `\r\nDTSTART:${item.dtstart}`;
+        icsString += `\r\nDTEND:${item.dtend}`;
+      }
+
       icsString += '\r\nEND:VEVENT';
     });
 
@@ -102,19 +74,11 @@ serve(async (req: Request): Promise<Response> => {
 
     // 3. ENVIAR LA RESPUESTA
     return new Response(icsString, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'text/calendar; charset=utf-8'
-      }
+      headers: { ...corsHeaders, 'Content-Type': 'text/calendar; charset=utf-8' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({
-      error: error.message
-    }), {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      },
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500
     });
   }
