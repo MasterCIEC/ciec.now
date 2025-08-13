@@ -1,4 +1,5 @@
 
+
 // App.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -71,7 +72,7 @@ const AppContent = (): JSX.Element => {
 
   const fetchMeetingCategories = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('commissions').select('*');
+    const { data, error } = await supabase.from('Commissions').select('*');
     if (error) console.error('Error al obtener categorías de reunión:', error.message, error);
     else setMeetingCategories(data || []);
   }, []);
@@ -101,28 +102,28 @@ const AppContent = (): JSX.Element => {
 
   const fetchParticipants = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('participants').select('*');
+    const { data, error } = await supabase.from('Participants').select('*');
     if (error) console.error('Error al obtener participantes:', error.message, error);
     else setParticipants(data ? data.map(participantFromSupabase) : []);
   }, []);
 
   const fetchMeetings = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('meetings').select('*');
+    const { data, error } = await supabase.from('Meetings').select('*');
     if (error) console.error('Error al obtener reuniones:', error.message, error);
     else setMeetings(data ? data.map(meetingFromSupabase) : []);
   }, []);
 
   const fetchEventCategories = useCallback(async () => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('event_categories').select('*');
+    const { data, error } = await supabase.from('EventCategories').select('*');
     if (error) console.error('Error al obtener categorías de eventos:', error.message, error);
     else setEventCategories(data || []);
   }, []);
 
   const fetchEvents = useCallback(async () => {
     if (!supabase) return;
-    const { data: rawEventsData, error: rawEventsError } = await supabase.from('events').select('*');
+    const { data: rawEventsData, error: rawEventsError } = await supabase.from('Events').select('*');
     if (rawEventsError) { console.error('Error fetching raw events:', rawEventsError.message); setEvents([]); return; }
     if (!rawEventsData) { setEvents([]); return; }
     const [eocResult, eocaResult] = await Promise.all([
@@ -240,7 +241,7 @@ const AppContent = (): JSX.Element => {
     const newParticipantId = generateNextId('P-', participants);
     const participantWithId = { ...participantData, id: newParticipantId };
     const { data: newParticipantEntry, error: participantError } = await supabase
-      .from('participants').insert([participantToSupabase(participantWithId)]).select('id').single();
+      .from('Participants').insert([participantToSupabase(participantWithId)]).select('id').single();
     if (participantError) { console.error('Error al añadir participante:', participantError.message); return; }
     if (newParticipantEntry && selectedCategoryIds.length > 0) {
       const categoryLinks = selectedCategoryIds.map(category_id => ({ participant_id: newParticipantEntry.id, commission_id: category_id }));
@@ -252,7 +253,7 @@ const AppContent = (): JSX.Element => {
 
   const handleUpdateParticipant = async (participantId: string, participantData: Omit<Participant, 'id'>, selectedCategoryIds: string[]) => {
     if (!supabase) return;
-    const { error: participantError } = await supabase.from('participants').update(participantToSupabaseForUpdate(participantData)).eq('id', participantId);
+    const { error: participantError } = await supabase.from('Participants').update(participantToSupabaseForUpdate(participantData)).eq('id', participantId);
     if (participantError) { console.error('Error al actualizar participante:', participantError.message); return; }
     const { error: deleteError } = await supabase.from('participant_commissions').delete().eq('participant_id', participantId);
     if (deleteError) console.error('Error al eliminar categorías antiguas del participante:', deleteError.message);
@@ -269,7 +270,7 @@ const AppContent = (): JSX.Element => {
     await supabase.from('participant_commissions').delete().eq('participant_id', participantId);
     await supabase.from('meeting_attendees').delete().eq('participant_id', participantId);
     await supabase.from('event_attendees').delete().eq('participant_id', participantId);
-    const { error } = await supabase.from('participants').delete().eq('id', participantId);
+    const { error } = await supabase.from('Participants').delete().eq('id', participantId);
     if (error) console.error('Error al eliminar participante:', error.message);
     else { fetchParticipants(); fetchParticipantMeetingCategories(); fetchMeetingAttendees(); fetchEventAttendees(); }
   };
@@ -277,7 +278,7 @@ const AppContent = (): JSX.Element => {
   const handleAddMeeting = async (meetingData: Omit<Meeting, 'id'>, selectedAttendeesInPersonIds: string[], selectedAttendeesOnlineIds: string[]) => {
     if (!supabase) return;
     const transformedMeetingData = { ...meetingData, subject: toTitleCase(meetingData.subject) };
-    const { data: newMeeting, error: meetingError } = await supabase.from('meetings').insert([meetingToSupabase(transformedMeetingData)]).select('id').single();
+    const { data: newMeeting, error: meetingError } = await supabase.from('Meetings').insert([meetingToSupabase(transformedMeetingData)]).select('id').single();
     if (meetingError) { console.error('Error al añadir reunión:', meetingError.message); return; }
     if (newMeeting) {
       const attendeesToInsert: { participant_id: string; attendance_type: 'in_person' | 'online' }[] = [];
@@ -295,7 +296,7 @@ const AppContent = (): JSX.Element => {
   const handleUpdateMeeting = async (meetingId: string, meetingData: Omit<Meeting, 'id'>, selectedAttendeesInPersonIds: string[], selectedAttendeesOnlineIds: string[]) => {
     if (!supabase) return;
     const transformedMeetingData = { ...meetingData, subject: toTitleCase(meetingData.subject) };
-    const { error: meetingError } = await supabase.from('meetings').update(meetingToSupabaseForUpdate(transformedMeetingData)).eq('id', meetingId);
+    const { error: meetingError } = await supabase.from('Meetings').update(meetingToSupabaseForUpdate(transformedMeetingData)).eq('id', meetingId);
     if (meetingError) { console.error('Error al actualizar reunión:', meetingError.message); return; }
     const { error: deleteError } = await supabase.from('meeting_attendees').delete().eq('meeting_id', meetingId);
     if (deleteError) console.error('Error al eliminar asistentes antiguos de la reunión:', deleteError.message);
@@ -313,7 +314,7 @@ const AppContent = (): JSX.Element => {
   const handleDeleteMeeting = async (meetingId: string) => {
     if (!supabase) return;
     await supabase.from('meeting_attendees').delete().eq('meeting_id', meetingId);
-    const { error } = await supabase.from('meetings').delete().eq('id', meetingId);
+    const { error } = await supabase.from('Meetings').delete().eq('id', meetingId);
     if (error) console.error('Error al eliminar reunión:', error.message);
     else { fetchMeetings(); fetchMeetingAttendees(); }
   };
@@ -323,7 +324,7 @@ const AppContent = (): JSX.Element => {
   const handleQuickAddMeeting = async (meetingData: Omit<Meeting, 'id'>) => {
     if (!supabase) return;
     const transformedMeetingData = { ...meetingData, subject: toTitleCase(meetingData.subject) };
-    const { error } = await supabase.from('meetings').insert([meetingToSupabase(transformedMeetingData)]);
+    const { error } = await supabase.from('Meetings').insert([meetingToSupabase(transformedMeetingData)]);
     if (error) { console.error('Error al añadir reunión rápida:', error.message); alert(`Error al guardar la reunión: ${error.message}`); }
     else fetchMeetings();
   };
@@ -331,7 +332,7 @@ const AppContent = (): JSX.Element => {
   const handleAddEvent = async (eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], selectedAttendeesInPersonIds: string[], selectedAttendeesOnlineIds: string[]) => {
     if (!supabase) return;
     const transformedEventData = { ...eventData, subject: toTitleCase(eventData.subject) };
-    const { data: newEvent, error: eventError } = await supabase.from('events').insert([eventToSupabase(transformedEventData)]).select('id').single();
+    const { data: newEvent, error: eventError } = await supabase.from('Events').insert([eventToSupabase(transformedEventData)]).select('id').single();
     if (eventError) { console.error('Error al añadir evento:', eventError.message); return; }
     if (newEvent) {
       if (selectedOrganizerIds.length > 0) {
@@ -357,7 +358,7 @@ const AppContent = (): JSX.Element => {
   const handleUpdateEvent = async (eventId: string, eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], selectedAttendeesInPersonIds: string[], selectedAttendeesOnlineIds: string[]) => {
     if (!supabase) return;
     const transformedEventData = { ...eventData, subject: toTitleCase(eventData.subject) };
-    await supabase.from('events').update(eventToSupabaseForUpdate(transformedEventData)).eq('id', eventId);
+    await supabase.from('Events').update(eventToSupabaseForUpdate(transformedEventData)).eq('id', eventId);
     await supabase.from('event_organizing_commissions').delete().eq('event_id', eventId);
     await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
     if (selectedOrganizerIds.length > 0) {
@@ -385,7 +386,7 @@ const AppContent = (): JSX.Element => {
     await supabase.from('event_attendees').delete().eq('event_id', eventId);
     await supabase.from('event_organizing_commissions').delete().eq('event_id', eventId);
     await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
-    const { error } = await supabase.from('events').delete().eq('id', eventId);
+    const { error } = await supabase.from('Events').delete().eq('id', eventId);
     if (error) console.error('Error al eliminar evento:', error.message);
     else fetchEvents();
   };
@@ -395,7 +396,7 @@ const AppContent = (): JSX.Element => {
   const handleQuickAddEvent = async (eventData: Omit<Event, 'id'>, organizerId: string) => {
     if (!supabase) return;
     const transformedEventData = { ...eventData, subject: toTitleCase(eventData.subject) };
-    const { data: newEvent, error: eventError } = await supabase.from('events').insert([eventToSupabase(transformedEventData)]).select('id').single();
+    const { data: newEvent, error: eventError } = await supabase.from('Events').insert([eventToSupabase(transformedEventData)]).select('id').single();
     if (eventError) { console.error('Error al añadir evento rápido:', eventError.message); alert(`Error al guardar el evento: ${eventError.message}`); return; }
     if (newEvent) {
       if (transformedEventData.organizerType === 'meeting_category') {
@@ -413,8 +414,8 @@ const AppContent = (): JSX.Element => {
 
   const handleAddMeetingCategory = async (category: MeetingCategory) => {
     if (!supabase) return;
-    const insertData: Database['public']['Tables']['commissions']['Insert'] = { id: category.id, name: category.name };
-    const { error } = await supabase.from('commissions').insert([insertData]);
+    const insertData: Database['public']['Tables']['Commissions']['Insert'] = { id: category.id, name: category.name };
+    const { error } = await supabase.from('Commissions').insert([insertData]);
     if (error) console.error('Error al añadir categoría de reunión:', error.message);
     else fetchMeetingCategories();
   };
@@ -422,28 +423,28 @@ const AppContent = (): JSX.Element => {
   const handleUpdateMeetingCategory = async (category: MeetingCategory) => {
     if (!supabase) return;
     const { id, ...categoryData } = category;
-    const updateData: Database['public']['Tables']['commissions']['Update'] = categoryData;
-    const { error } = await supabase.from('commissions').update(updateData).eq('id', id);
+    const updateData: Database['public']['Tables']['Commissions']['Update'] = categoryData;
+    const { error } = await supabase.from('Commissions').update(updateData).eq('id', id);
     if (error) console.error('Error al actualizar categoría de reunión:', error.message);
     else fetchMeetingCategories();
   };
 
   const handleDeleteMeetingCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
-    const { count: meetingsCount, error: meetingsError } = await supabase.from('meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
+    const { count: meetingsCount, error: meetingsError } = await supabase.from('Meetings').select('id', { count: 'exact', head: true }).eq('commission_id', categoryId);
     if (meetingsError) { console.error('Error checking for related meetings:', meetingsError.message); alert(`Error al verificar reuniones: ${meetingsError.message}`); return false; }
     if ((meetingsCount ?? 0) > 0) { alert("No se puede eliminar la categoría porque hay reuniones directamente asociadas. Por favor, reasigne o elimine esas reuniones primero."); return false; }
     await supabase.from('participant_commissions').delete().eq('commission_id', categoryId);
     await supabase.from('event_organizing_commissions').delete().eq('commission_id', categoryId);
-    const { error: deleteError } = await supabase.from('commissions').delete().eq('id', categoryId);
+    const { error: deleteError } = await supabase.from('Commissions').delete().eq('id', categoryId);
     if (deleteError) { console.error('Error al eliminar categoría de reunión:', deleteError.message); alert(`Error: ${deleteError.message}`); return false; }
     fetchMeetingCategories(); return true;
   };
 
   const handleAddEventCategory = async (category: EventCategory) => {
     if (!supabase) return;
-    const insertData: Database['public']['Tables']['event_categories']['Insert'] = { id: category.id, name: category.name };
-    const { error } = await supabase.from('event_categories').insert([insertData]);
+    const insertData: Database['public']['Tables']['EventCategories']['Insert'] = { id: category.id, name: category.name };
+    const { error } = await supabase.from('EventCategories').insert([insertData]);
     if (error) console.error('Error al añadir categoría de evento:', error.message);
     else fetchEventCategories();
   };
@@ -451,8 +452,8 @@ const AppContent = (): JSX.Element => {
   const handleUpdateEventCategory = async (category: EventCategory) => {
     if (!supabase) return;
     const { id, ...categoryData } = category;
-    const updateData: Database['public']['Tables']['event_categories']['Update'] = categoryData;
-    const { error } = await supabase.from('event_categories').update(updateData).eq('id', id);
+    const updateData: Database['public']['Tables']['EventCategories']['Update'] = categoryData;
+    const { error } = await supabase.from('EventCategories').update(updateData).eq('id', id);
     if (error) console.error('Error al actualizar categoría de evento:', error.message);
     else fetchEventCategories();
   };
@@ -460,7 +461,7 @@ const AppContent = (): JSX.Element => {
   const handleDeleteEventCategory = async (categoryId: string): Promise<boolean> => {
     if (!supabase) return false;
     await supabase.from('event_organizing_categories').delete().eq('category_id', categoryId);
-    const { error } = await supabase.from('event_categories').delete().eq('id', categoryId);
+    const { error } = await supabase.from('EventCategories').delete().eq('id', categoryId);
     if (error) { console.error('Error al eliminar categoría de evento:', error.message); alert(`Error: ${error.message}`); return false; }
     fetchEventCategories(); return true;
   };
