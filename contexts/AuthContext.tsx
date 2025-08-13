@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useRef, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
@@ -8,64 +8,62 @@ type AuthContextType = {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  signOut: (options?: { dueToInactivity?: boolean }) => Promise<void>;
+  showInactivityModal: boolean;
+  closeInactivityModal: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showInactivityModal, setShowInactivityModal] = useState(false);
+  const inactivityTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    const fetchSessionData = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          const { data: userProfile, error: profileError } = await supabase
-            .from('userprofiles')
-            .select('*, roles(name)')
-            .eq('id', session.user.id)
-            .single();
-          if (profileError && profileError.code !== 'PGRST116') { // Ignore "exact one row" error if profile doesn't exist yet
-            throw profileError;
-          }
-          setProfile(userProfile as any);
-        }
-      } catch (error) {
-        console.error('Error fetching session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSessionData();
-
+    setLoading(true);
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(true);
-      if (session?.user) {
-        const { data: userProfile, error: profileError } = await supabase
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (currentUser) {
+        // Fetch profile first, then role, to avoid issues with relational queries and missing type definitions.
+        const { data: userProfileData, error: profileError } = await supabase
           .from('userprofiles')
-          .select('*, roles(name)')
-          .eq('id', session.user.id)
+          .select('*')
+          .eq('id', currentUser.id)
           .single();
+        
         if (profileError && profileError.code !== 'PGRST116') {
           console.error("Error fetching profile on auth state change:", profileError);
           setProfile(null);
+        } else if (userProfileData) {
+          let finalProfile: UserProfile = userProfileData as UserProfile;
+          if (userProfileData.role_id) {
+            const { data: roleData, error: roleError } = await supabase
+              .from('roles')
+              .select('id, name')
+              .eq('id', userProfileData.role_id)
+              .single();
+            
+            if (!roleError && roleData) {
+              finalProfile.roles = roleData;
+            }
+          }
+          setProfile(finalProfile);
         } else {
-          setProfile(userProfile as any);
+            setProfile(null);
         }
       } else {
         setProfile(null);
       }
+      
       setLoading(false);
     });
 
@@ -74,9 +72,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async (options?: { dueToInactivity?: boolean }) => {
+    if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+    }
     await supabase.auth.signOut();
-  };
+    if (options?.dueToInactivity) {
+        setShowInactivityModal(true);
+    }
+  }, []);
+
+  const handleInactivity = useCallback(() => {
+    signOut({ dueToInactivity: true });
+  }, [signOut]);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+    }
+    inactivityTimer.current = window.setTimeout(handleInactivity, INACTIVITY_TIMEOUT);
+  }, [handleInactivity]);
+
+  useEffect(() => {
+    if (session) {
+        const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+        
+        events.forEach(event => window.addEventListener(event, resetInactivityTimer, { passive: true }));
+        resetInactivityTimer();
+
+        return () => {
+            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+            if (inactivityTimer.current) {
+                clearTimeout(inactivityTimer.current);
+            }
+        };
+    } else {
+        if (inactivityTimer.current) {
+            clearTimeout(inactivityTimer.current);
+        }
+    }
+  }, [session, resetInactivityTimer]);
+
+  const closeInactivityModal = () => setShowInactivityModal(false);
 
   const value = {
     session,
@@ -84,9 +121,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     profile,
     loading,
     signOut,
+    showInactivityModal,
+    closeInactivityModal,
   };
 
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

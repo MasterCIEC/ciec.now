@@ -156,13 +156,13 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
         </div>
       </div>
       
-      <div className="flex flex-grow gap-6">
+      <div className="flex flex-grow gap-6 overflow-hidden">
         {/* Sidebar */}
         <aside className="w-64 flex-shrink-0 hidden md:block">
-            <div className="sticky top-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md">
+            <div className="sticky top-6 bg-white dark:bg-slate-800 p-4 rounded-lg shadow-md h-full flex flex-col">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Índice por Municipio</h3>
-                <nav>
-                    <ul className="space-y-1 max-h-[70vh] overflow-y-auto">
+                <nav className="flex-grow overflow-y-auto">
+                    <ul className="space-y-1">
                         {municipalityOrder.length > 0 ? (
                           municipalityOrder.map(municipality => (
                             <li key={municipality}>
@@ -192,8 +192,8 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
         </aside>
 
         {/* Main Content */}
-        <main className="flex-grow">
-            <Card>
+        <main className="flex-grow flex flex-col overflow-hidden">
+            <Card className="flex flex-col flex-grow">
                 <CardHeader>
                   <CardTitle>Directorio de Empresas Afiliadas</CardTitle>
                   <CardDescription>
@@ -214,7 +214,7 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-grow overflow-y-auto">
                     <div className="md:hidden flex flex-wrap gap-2 mb-4 border-b pb-4 dark:border-slate-700">
                         {municipalityOrder.length > 0 ? (
                         municipalityOrder.map(municipality => (
@@ -272,7 +272,7 @@ const CompaniesView: React.FC<CompaniesViewProps> = ({
                     </div>
 
                     {/* Desktop Table View */}
-                    <div className="hidden md:block overflow-x-auto">
+                    <div className="hidden md:block">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                         <thead className="bg-slate-50 dark:bg-slate-800">
                             <tr>

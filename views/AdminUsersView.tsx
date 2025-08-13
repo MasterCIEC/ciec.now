@@ -20,7 +20,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack }) => {
     try {
       const { data: usersData, error: usersError } = await supabase
         .from('userprofiles')
-        .select('*, roles(id, name)');
+        .select('*');
 
       if (usersError) throw usersError;
       setUsers(usersData as any);

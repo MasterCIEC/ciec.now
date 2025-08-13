@@ -56,7 +56,7 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
     <div className="p-4 sm:p-8 min-h-screen flex flex-col items-center justify-start relative">
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 flex items-center gap-4">
         <ThemeToggleButton currentTheme={currentTheme} toggleTheme={toggleTheme} />
-        <button onClick={signOut} className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+        <button onClick={() => signOut()} className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
           Cerrar Sesión
         </button>
       </div>

@@ -746,20 +746,20 @@ CIEC.Now`
 
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div className="p-4 sm:p-6 space-y-6 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 flex-shrink-0">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Programar Eventos</h1>
         <div className="flex space-x-2"><Button onClick={handleOpenCreateModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir Evento</Button>{onNavigateBack && (<Button onClick={handleBackNavigation} variant="secondary">Volver al Menú</Button>)}</div>
       </div>
       
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden">
         {/* Sidebar */}
         <aside className="md:w-64 flex-shrink-0">
-          <div className="sticky top-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+          <div className="sticky top-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md h-full flex flex-col">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Categorías</h3>
-            <Input containerClassName="mb-4" placeholder="Buscar por asunto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-            <nav>
-              <ul className="space-y-1 max-h-[60vh] overflow-y-auto">
+            <Input containerClassName="mb-4 flex-shrink-0" placeholder="Buscar por asunto..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <nav className="flex-grow overflow-y-auto">
+              <ul className="space-y-1">
                 {sidebarMeetingCategoryOrganizers.length > 0 && (
                   <>
                     <li className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Por Cat. de Reunión</li>
@@ -810,9 +810,9 @@ CIEC.Now`
         </aside>
 
         {/* Main Content */}
-        <main className="flex-grow">
+        <main className="flex-grow overflow-y-auto">
           {filteredEvents.length === 0 ? (
-            <div className="text-center py-10 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <div className="text-center py-10 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg shadow-md h-full flex items-center justify-center">
               {searchTerm ? 'No se encontraron eventos que coincidan.' : 'No hay eventos para esta categoría.'}
             </div>
           ) : (

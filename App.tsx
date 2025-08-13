@@ -1,5 +1,3 @@
-
-
 // App.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -501,10 +499,31 @@ const AppContent = (): JSX.Element => {
   return <main>{renderContent()}</main>;
 };
 
+const InactivityModal: React.FC<{ onConfirm: () => void }> = ({ onConfirm }) => (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm p-4">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-8 text-center max-w-sm w-full">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Sesión Suspendida</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">Su sesión se ha cerrado por inactividad.</p>
+            <Button onClick={onConfirm} variant="primary" size="lg">Aceptar</Button>
+        </div>
+    </div>
+);
+
+const AppWithAuthAndModal = () => {
+  const { showInactivityModal, closeInactivityModal } = useAuth();
+  
+  return (
+    <>
+      {showInactivityModal && <InactivityModal onConfirm={closeInactivityModal} />}
+      <AppContent />
+    </>
+  );
+};
+
 const App = (): JSX.Element => (
   <div className="min-h-screen">
     <AuthProvider>
-      <AppContent />
+      <AppWithAuthAndModal />
     </AuthProvider>
   </div>
 );

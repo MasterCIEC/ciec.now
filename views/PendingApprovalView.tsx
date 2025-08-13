@@ -14,7 +14,7 @@ const PendingApprovalView: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-300 mb-6">
           Gracias por registrarte, {user?.email}. Tu cuenta ha sido creada y está esperando la aprobación de un administrador. Recibirás una notificación una vez que sea activada.
         </p>
-        <Button onClick={signOut} variant="secondary">
+        <Button onClick={() => signOut()} variant="secondary">
           Cerrar Sesión
         </Button>
       </div>

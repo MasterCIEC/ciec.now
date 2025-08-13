@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { MeetingCategory, Meeting, Participant, Event, ParticipantMeetingCategory, EventOrganizingMeetingCategory } from '../types';
 import Modal from '../components/Modal';
@@ -10,6 +7,7 @@ import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import { generateId } from '../constants';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 
 interface ManageMeetingCategoriesViewProps {
   meetingCategories: MeetingCategory[];
@@ -139,49 +137,60 @@ const ManageMeetingCategoriesView: React.FC<ManageMeetingCategoriesViewProps> = 
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4"><h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Gestionar Categorías de Reuniones</h1><div className="flex space-x-2"><Button onClick={openAddModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir Categoría</Button><Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button></div></div>
-      <Input placeholder="Buscar categorías por nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="mb-6"/>
-
-      <div className="md:hidden space-y-4">
-        {filteredCategories.length === 0 && (<div className="text-center text-sm text-gray-500 dark:text-gray-400 py-10">No se encontraron categorías.</div>)}
-        {filteredCategories.map(category => (
-          <div key={category.id} className="bg-gray-50 dark:bg-gray-700 shadow-sm rounded-md p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
-            <div className="flex justify-between items-start w-full gap-3">
-              <div className="flex-grow space-y-0.5">
-                <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 break-words">{category.name}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-300">Reuniones: {getMeetingsCountForCategory(category.id)}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-300">Participantes: {getParticipantsCountForCategory(category.id)}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-300">Eventos: {getEventsCountForCategory(category.id)}</p>
-              </div>
-              <div className="flex-shrink-0 flex space-x-2">
-                <Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="accent" size="sm" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
-                <Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="danger" size="sm" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
-              </div>
-            </div>
+    <div className="p-4 sm:p-6 space-y-6 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 flex-shrink-0"><h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Gestionar Categorías de Reuniones</h1><div className="flex space-x-2"><Button onClick={openAddModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir Categoría</Button><Button onClick={onNavigateBack} variant="secondary">Volver al Menú</Button></div></div>
+      
+      <Card className="flex-grow flex flex-col overflow-hidden">
+        <CardHeader>
+          <CardTitle>Lista de Categorías</CardTitle>
+          <CardDescription>Cree, edite y gestione las categorías para organizar reuniones.</CardDescription>
+          <div className="mt-4">
+            <Input placeholder="Buscar categorías por nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-        ))}
-      </div>
-
-      <div className="hidden md:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reuniones</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Participantes</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Eventos</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th></tr></thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+        </CardHeader>
+        <CardContent className="flex-grow overflow-y-auto p-0">
+          <div className="md:hidden space-y-4 p-4">
+            {filteredCategories.length === 0 && (<div className="text-center text-sm text-gray-500 dark:text-gray-400 py-10">No se encontraron categorías.</div>)}
             {filteredCategories.map(category => (
-              <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{category.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getMeetingsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getEventsCountForCategory(category.id)}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex items-center space-x-2">
+              <div key={category.id} className="bg-gray-50 dark:bg-gray-700 shadow-sm rounded-md p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
+                <div className="flex justify-between items-start w-full gap-3">
+                  <div className="flex-grow space-y-0.5">
+                    <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 break-words">{category.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-300">Reuniones: {getMeetingsCountForCategory(category.id)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-300">Participantes: {getParticipantsCountForCategory(category.id)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-300">Eventos: {getEventsCountForCategory(category.id)}</p>
+                  </div>
+                  <div className="flex-shrink-0 flex space-x-2">
                     <Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="accent" size="sm" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
                     <Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="danger" size="sm" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
                   </div>
-                </td>
-              </tr>
+                </div>
+              </div>
             ))}
-            {filteredCategories.length === 0 && (<tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">No se encontraron categorías de reunión.</td></tr>)}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nombre</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reuniones</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Participantes</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Eventos</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th></tr></thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredCategories.map(category => (
+                  <tr key={category.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => openViewModal(category)} role="button" tabIndex={0} aria-label={`Ver detalles de ${category.name}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{category.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getMeetingsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getParticipantsCountForCategory(category.id)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getEventsCountForCategory(category.id)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center space-x-2">
+                        <Button onClick={(e)=>{e.stopPropagation();setCategoryToViewOrEdit(category);setModalMode('edit');setIsModalOpen(true);}} variant="accent" size="sm" aria-label={`Editar ${category.name}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
+                        <Button onClick={(e)=>{e.stopPropagation();handleDeleteRequest(category);}} variant="danger" size="sm" aria-label={`Eliminar ${category.name}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredCategories.length === 0 && (<tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-gray-500 dark:text-gray-400">No se encontraron categorías de reunión.</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         { modalMode === 'view' ? renderViewCategoryContent() : renderFormContent() }

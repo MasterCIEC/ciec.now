@@ -116,7 +116,7 @@ export type Database = {
           telefono_principal_1?: string | null;
           nombre_municipio?: string | null;
         };
-      };
+      }
     }
     Views: { [_ in never]: never }
     Functions: { [_ in never]: never }

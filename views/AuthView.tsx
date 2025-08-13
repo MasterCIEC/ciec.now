@@ -37,6 +37,7 @@ const AuthView: React.FC = () => {
         setFullName('');
         setEmail('');
         setPassword('');
+        setIsLoginView(true);
       }
     }
     setLoading(false);

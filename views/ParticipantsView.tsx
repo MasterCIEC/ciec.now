@@ -8,7 +8,7 @@ import Select from '../components/ui/Select';
 import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 
 interface ParticipantsViewProps {
   participants: Participant[];
@@ -39,7 +39,6 @@ const normalizeString = (str: string): string => {
     .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
 };
 
-// Se movió fuera del componente principal para evitar que se vuelva a montar en cada renderizado, lo que causaba el parpadeo.
 const AffiliationDetail: React.FC<{ 
     participant: Participant; 
     getParticipantAffiliationDetails: (participant: Participant) => Promise<string>;
@@ -210,7 +209,6 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         return affiliationDetailsCache.get(cacheKey)!;
     }
     if (!participant.id_establecimiento) {
-        // Corrección: Guardar en caché el estado 'Independiente' para evitar re-cálculos.
         const detailString = 'Independiente';
         setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
         return detailString;
@@ -299,8 +297,8 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div className="p-4 sm:p-6 space-y-6 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 flex-shrink-0">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Participantes</h1>
         <div className="flex space-x-2">
           <Button onClick={openAddModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir</Button>
@@ -308,14 +306,15 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         </div>
       </div>
       
-      <Card>
+      <Card className="flex-grow flex flex-col overflow-hidden">
         <CardHeader>
           <CardTitle>Directorio de Participantes</CardTitle>
+          <CardDescription>Gestione la información de los participantes y su asignación a comisiones.</CardDescription>
           <div className="mt-4">
             <Input placeholder="Buscar por nombre o correo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="flex-grow overflow-y-auto p-0">
           <div className="md:hidden space-y-4 p-4">
             {filteredParticipants.length > 0 ? (
               filteredParticipants.map(participant => (
@@ -340,7 +339,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
             )}
           </div>
 
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
