@@ -1,13 +1,16 @@
 import React from 'react';
-import { ViewKey } from '../types';
+import { ViewKey, UserProfile } from '../types';
 import { Card } from '../components/ui/Card';
-import { GALLERY_MENU_ITEMS } from '../constants';
+import { GALLERY_MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
 import ThemeToggleButton, { Theme } from '../components/ThemeToggleButton';
+import { useAuth } from '../contexts/AuthContext';
+import AppLogo from '../components/AppLogo';
 
 interface MainMenuViewProps {
   onNavigate: (viewKey: ViewKey) => void;
   currentTheme: Theme;
   toggleTheme: () => void;
+  profile: UserProfile;
 }
 
 const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
@@ -16,11 +19,14 @@ const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
   </div>
 );
 
-const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, toggleTheme }) => {
+const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, toggleTheme, profile }) => {
+  const { signOut } = useAuth();
   const planningItems = GALLERY_MENU_ITEMS.filter(item => ['agenda'].includes(item.id));
   const creationItems = GALLERY_MENU_ITEMS.filter(item => ['schedule', 'events'].includes(item.id));
   const managementItems = GALLERY_MENU_ITEMS.filter(item => ['meetingCategories', 'eventCategories', 'participants', 'companies'].includes(item.id));
   const analysisItems = GALLERY_MENU_ITEMS.filter(item => ['stats', 'reports'].includes(item.id));
+  
+  const isAdmin = profile?.roles?.name === 'SuperAdmin' || profile?.roles?.name === 'Admin';
 
   const renderCard = (item: typeof GALLERY_MENU_ITEMS[0]) => (
       <Card 
@@ -48,17 +54,29 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
 
   return (
     <div className="p-4 sm:p-8 min-h-screen flex flex-col items-center justify-start relative">
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10 flex items-center gap-4">
         <ThemeToggleButton currentTheme={currentTheme} toggleTheme={toggleTheme} />
+        <button onClick={signOut} className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+          Cerrar Sesión
+        </button>
       </div>
 
       <div className="text-center mb-12 w-full max-w-6xl">
+        <AppLogo className="w-48 h-24 mx-auto mb-4" />
         <h1 className="text-4xl sm:text-5xl font-bold text-primary-700 dark:text-accent mb-3">CIEC.Now</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-300">Administración profesional de agendas y actividades de comisiones CIEC.</p>
+        <p className="text-lg text-gray-600 dark:text-gray-300">Bienvenido, {profile.full_name || 'Usuario'}.</p>
       </div>
       
       <div className="w-full max-w-6xl flex flex-col gap-12">
-        {/* Section 1: Vista y Planificación */}
+        {isAdmin && (
+          <section>
+            <SectionHeader title="Administración" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {ADMIN_MENU_ITEMS.map(renderCard)}
+            </div>
+          </section>
+        )}
+
         <section>
           <SectionHeader title="Vista y Planificación" />
           <div className="grid grid-cols-1 gap-6">
@@ -66,7 +84,6 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
           </div>
         </section>
 
-        {/* Section 2: Creación y Programación */}
         <section>
           <SectionHeader title="Creación y Programación" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -74,7 +91,6 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
           </div>
         </section>
 
-        {/* Section 3: Administración de Datos */}
         <section>
           <SectionHeader title="Administración de Datos" />
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-6">
@@ -82,7 +98,6 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
           </div>
         </section>
 
-        {/* Section 4: Análisis y Reportes */}
         <section>
           <SectionHeader title="Análisis y Reportes" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">

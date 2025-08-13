@@ -11,6 +11,7 @@ export enum ViewKey {
   ManageEventCategories = 'MANAGE_EVENT_CATEGORIES',
   StatsView = 'STATS_VIEW',
   ReportsView = 'REPORTS_VIEW',
+  AdminUsersView = 'ADMIN_USERS_VIEW',
 }
 
 export interface MenuItem {
@@ -26,7 +27,6 @@ export interface MeetingCategory {
   name: string;
 }
 
-// Interfaz 'Company' MODIFICADA para reflejar la tabla remota de establecimientos
 export interface Company {
   id_establecimiento: string;
   nombre_establecimiento: string;
@@ -36,14 +36,10 @@ export interface Company {
   nombre_municipio: string | null;
 }
 
-// SE ELIMINA este tipo, ya no se usará
-// export type ParticipantAffiliationType = 'company' | 'external' | 'independent';
-
-// Interfaz 'Participant' MODIFICADA para la nueva estructura
 export interface Participant {
   id: string;
   name: string;
-  id_establecimiento?: string | null; // El nuevo y único campo de relación
+  id_establecimiento?: string | null;
   role: string | null;
   email: string | null;
   phone?: string | null;
@@ -81,7 +77,6 @@ export interface Event {
   revenue?: number;
 }
 
-// Tipos para las tablas de unión (se mantienen igual)
 export interface ParticipantMeetingCategory {
   participant_id: string;
   meeting_category_id: string;
@@ -109,7 +104,19 @@ export interface EventOrganizingCategory {
   category_id: string;
 }
 
-// Props para componentes de UI (se mantienen igual)
+export interface Role {
+  id: number;
+  name: string;
+}
+
+export interface UserProfile {
+  id: string;
+  full_name: string | null;
+  is_approved: boolean;
+  role_id: number | null;
+  roles?: Role; // Joined data from roles table
+}
+
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;

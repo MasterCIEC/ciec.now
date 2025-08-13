@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { MeetingCategory, Meeting, Participant, Event, ParticipantMeetingCategory, EventOrganizingMeetingCategory } from '../types';
 import Modal from '../components/Modal';

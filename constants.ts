@@ -10,6 +10,7 @@ import EventsIcon from './components/icons/EventsIcon';
 import EventCategoriesIcon from './components/icons/EventCategoriesIcon';
 import StatsIcon from './components/icons/StatsIcon';
 import ReportIcon from './components/icons/ReportIcon';
+import AdminIcon from './components/icons/AdminIcon';
 
 export const GALLERY_MENU_ITEMS: MenuItem[] = [
   {
@@ -77,9 +78,15 @@ export const GALLERY_MENU_ITEMS: MenuItem[] = [
   },
 ];
 
-// NOTA: Se eliminan las constantes INITIAL_* ya que los datos ahora provendrán de Supabase.
-// Mantener estos datos de prueba podría causar conflictos o confusiones durante el desarrollo.
-// Si los necesitas para pruebas unitarias o de otro tipo, se recomienda moverlos a un archivo de mocks separado.
+export const ADMIN_MENU_ITEMS: MenuItem[] = [
+  {
+    id: 'adminUsers',
+    name: 'Gestionar Usuarios',
+    icon: AdminIcon,
+    viewKey: ViewKey.AdminUsersView,
+    description: 'Aprobar nuevos usuarios, asignar roles y gestionar el acceso a la aplicación.'
+  }
+];
 
 export const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);

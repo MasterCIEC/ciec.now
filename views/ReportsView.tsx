@@ -4,7 +4,7 @@ import { Meeting, Event, Participant, MeetingCategory, EventCategory, MeetingAtt
 import Button from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import AppLogoIcon from '../components/icons/AppLogoIcon';
+import AppLogo from '../components/AppLogo';
 import ExportIcon from '../components/icons/ExportIcon';
 
 declare global {
@@ -308,7 +308,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({
               <h1 className="text-3xl font-bold text-gray-800">Reporte de Actividades</h1>
               <p className="text-gray-600">Período: {formatDateForHeader(reportData.startDate)} - {formatDateForHeader(reportData.endDate)}</p>
           </div>
-          <AppLogoIcon className="w-20 h-20 text-primary-700" />
+          <AppLogo className="w-40 h-20" variant="light" />
         </header>
         <section className="mb-8">
             <h2 className="text-xl font-semibold border-b border-gray-400 pb-2 mb-4">Resumen General</h2>
@@ -350,7 +350,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({
             <div key={`page-activities-${index}`} className="report-page mx-auto mb-4 w-[210mm] h-[297mm] bg-white text-black p-8 border border-gray-300 flex flex-col">
                 <header className="flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-6">
                     <h1 className="text-3xl font-bold text-gray-800">Detalle de Actividades</h1>
-                    <AppLogoIcon className="w-20 h-20 text-primary-700" />
+                    <AppLogo className="w-40 h-20" variant="light" />
                 </header>
                 <section className="flex-grow">
                     <div className="space-y-4">
