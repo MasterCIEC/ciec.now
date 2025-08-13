@@ -9,6 +9,7 @@ import MeetingCategoriesIcon from './components/icons/CommitteesIcon';
 import EventsIcon from './components/icons/EventsIcon';
 import EventCategoriesIcon from './components/icons/EventCategoriesIcon';
 import StatsIcon from './components/icons/StatsIcon';
+import ReportIcon from './components/icons/ReportIcon';
 
 export const GALLERY_MENU_ITEMS: MenuItem[] = [
   {
@@ -66,6 +67,13 @@ export const GALLERY_MENU_ITEMS: MenuItem[] = [
     icon: StatsIcon,
     viewKey: ViewKey.StatsView,
     description: 'Visualizar estadísticas detalladas sobre asistencia y participación en comisiones.'
+  },
+  {
+    id: 'reports',
+    name: 'Reportes',
+    icon: ReportIcon,
+    viewKey: ViewKey.ReportsView,
+    description: 'Generar y exportar resúmenes de actividad en formato PDF para un período determinado.'
   },
 ];
 

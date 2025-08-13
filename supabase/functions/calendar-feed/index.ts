@@ -1,6 +1,11 @@
-/// <reference types="https://esm.sh/@supabase/functions-js@2.4.1/edge-functions.d.ts" />
+// We declare Deno here to satisfy TypeScript in environments that don't resolve remote types for Edge Functions.
+// The Supabase Edge Function runtime will provide the actual Deno global.
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
-// supabase/functions/calendar-feed/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -22,18 +27,15 @@ serve(async (req: Request) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      // Usamos la clave anónima (anon key) ya que le dimos permisos a la vista
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // 1. OBTENER DATOS PRE-FORMATEADOS DE LA VISTA
     const { data: calendarItems, error } = await supabaseClient
       .from('calendar_feed_data')
       .select('*');
 
     if (error) throw error;
 
-    // 2. CONSTRUIR EL STRING iCALENDAR
     let icsString = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -46,16 +48,18 @@ serve(async (req: Request) => {
 
     const dtstamp = new Date().toISOString().replace(/-|:|\.\d+/g, '') + 'Z';
 
-    calendarItems.forEach((item) => {
+    calendarItems.forEach((item: any) => {
       const uid = `${item.item_type}-${item.id}@ciec.now`;
       const summary = formatIcsText(item.subject);
       const description = formatIcsText(item.description);
       const location = formatIcsText(item.location);
+      const category = formatIcsText(item.category); // Tomamos la nueva categoría
 
       icsString += '\r\nBEGIN:VEVENT';
       icsString += `\r\nUID:${uid}`;
       icsString += `\r\nDTSTAMP:${dtstamp}`;
       icsString += `\r\nSUMMARY:${summary}`;
+      if (category) icsString += `\r\nCATEGORIES:${category}`; // ✨ LÍNEA AÑADIDA
       if (description) icsString += `\r\nDESCRIPTION:${description}`;
       if (location) icsString += `\r\nLOCATION:${location}`;
 
@@ -72,7 +76,6 @@ serve(async (req: Request) => {
 
     icsString += '\r\nEND:VCALENDAR';
 
-    // 3. ENVIAR LA RESPUESTA
     return new Response(icsString, {
       headers: { ...corsHeaders, 'Content-Type': 'text/calendar; charset=utf-8' }
     });

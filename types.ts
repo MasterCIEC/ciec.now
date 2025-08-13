@@ -10,6 +10,7 @@ export enum ViewKey {
   ManageEvents = 'MANAGE_EVENTS',
   ManageEventCategories = 'MANAGE_EVENT_CATEGORIES',
   StatsView = 'STATS_VIEW',
+  ReportsView = 'REPORTS_VIEW',
 }
 
 export interface MenuItem {

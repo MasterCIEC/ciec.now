@@ -20,7 +20,7 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
   const planningItems = GALLERY_MENU_ITEMS.filter(item => ['agenda'].includes(item.id));
   const creationItems = GALLERY_MENU_ITEMS.filter(item => ['schedule', 'events'].includes(item.id));
   const managementItems = GALLERY_MENU_ITEMS.filter(item => ['meetingCategories', 'eventCategories', 'participants', 'companies'].includes(item.id));
-  const statsItems = GALLERY_MENU_ITEMS.filter(item => ['stats'].includes(item.id));
+  const analysisItems = GALLERY_MENU_ITEMS.filter(item => ['stats', 'reports'].includes(item.id));
 
   const renderCard = (item: typeof GALLERY_MENU_ITEMS[0]) => (
       <Card 
@@ -82,11 +82,11 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
           </div>
         </section>
 
-        {/* Section 4: Estadísticas */}
+        {/* Section 4: Análisis y Reportes */}
         <section>
-          <SectionHeader title="Estadísticas" />
-          <div className="grid grid-cols-1 gap-6">
-            {statsItems.map(renderCard)}
+          <SectionHeader title="Análisis y Reportes" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {analysisItems.map(renderCard)}
           </div>
         </section>
       </div>

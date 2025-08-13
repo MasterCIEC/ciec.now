@@ -30,6 +30,7 @@ import ManageMeetingCategoriesView from './views/ManageCommitteesView';
 import ManageEventsView from './views/ManageEventsView';
 import ManageEventCategoriesView from './views/ManageEventCategoriesView';
 import StatsView from './views/StatsView';
+import ReportsView from './views/ReportsView';
 import { Theme } from './components/ThemeToggleButton';
 
 
@@ -809,6 +810,20 @@ const App = (): JSX.Element => {
           meetingCategories={meetingCategories}
           meetingAttendees={meetingAttendees}
           participantMeetingCategories={participantMeetingCategories}
+          onNavigateBack={() => navigate(ViewKey.MainMenuView)}
+        />;
+      case ViewKey.ReportsView:
+        return <ReportsView 
+          meetings={meetings}
+          events={events}
+          participants={participants}
+          companies={companies}
+          meetingCategories={meetingCategories}
+          eventCategories={eventCategories}
+          meetingAttendees={meetingAttendees}
+          eventAttendees={eventAttendees}
+          eventOrganizingMeetingCategories={eventOrganizingMeetingCategories}
+          eventOrganizingCategories={eventOrganizingCategories}
           onNavigateBack={() => navigate(ViewKey.MainMenuView)}
         />;
       default:

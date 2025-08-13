@@ -39,6 +39,31 @@ const normalizeString = (str: string): string => {
     .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
 };
 
+// Se movió fuera del componente principal para evitar que se vuelva a montar en cada renderizado, lo que causaba el parpadeo.
+const AffiliationDetail: React.FC<{ 
+    participant: Participant; 
+    getParticipantAffiliationDetails: (participant: Participant) => Promise<string>;
+    affiliationDetailsCache: Map<string, string>;
+}> = ({ participant, getParticipantAffiliationDetails, affiliationDetailsCache }) => {
+    const cacheKey = participant.id_establecimiento || 'independent';
+    const cachedValue = affiliationDetailsCache.get(cacheKey);
+    const [details, setDetails] = useState<string>(cachedValue || 'Cargando...');
+
+    useEffect(() => {
+        let isMounted = true;
+        if (!cachedValue) {
+            getParticipantAffiliationDetails(participant).then(fetchedDetails => {
+                if(isMounted) setDetails(fetchedDetails);
+            });
+        } else if (details !== cachedValue) {
+            setDetails(cachedValue);
+        }
+        return () => { isMounted = false };
+    }, [participant, getParticipantAffiliationDetails, cachedValue, details]);
+
+    return <>{details}</>;
+};
+
 const ParticipantsView: React.FC<ParticipantsViewProps> = ({
   participants,
   meetingCategories,
@@ -182,45 +207,37 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     if (!supabase) return 'Error de conexión';
     const cacheKey = participant.id_establecimiento || 'independent';
     if (affiliationDetailsCache.has(cacheKey)) {
-      return affiliationDetailsCache.get(cacheKey)!;
+        return affiliationDetailsCache.get(cacheKey)!;
     }
-    if (!participant.id_establecimiento) return 'Independiente';
+    if (!participant.id_establecimiento) {
+        // Corrección: Guardar en caché el estado 'Independiente' para evitar re-cálculos.
+        const detailString = 'Independiente';
+        setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
+        return detailString;
+    }
 
     const { data: estData } = await supabase
-      .from('establecimientos_completos_remotos')
-      .select('nombre_establecimiento')
-      .eq('id_establecimiento', participant.id_establecimiento)
-      .single();
-    if (!estData) return 'Establecimiento Desconocido';
+        .from('establecimientos_completos_remotos')
+        .select('nombre_establecimiento')
+        .eq('id_establecimiento', participant.id_establecimiento)
+        .single();
+    if (!estData) {
+        const detailString = 'Establecimiento Desconocido';
+        setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
+        return detailString;
+    }
 
     const { data: affData } = await supabase
-      .from('afiliaciones_remotos')
-      .select('id_establecimiento')
-      .eq('id_establecimiento', participant.id_establecimiento)
-      .eq('rif_institucion', RIF_GREMIO)
-      .single();
+        .from('afiliaciones_remotos')
+        .select('id_establecimiento')
+        .eq('id_establecimiento', participant.id_establecimiento)
+        .eq('rif_institucion', RIF_GREMIO)
+        .single();
 
     const detailString = affData ? `Afiliado: ${estData.nombre_establecimiento}` : `Externo: ${estData.nombre_establecimiento}`;
     setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
     return detailString;
   }, [affiliationDetailsCache, RIF_GREMIO]);
-
-  const AffiliationDetail: React.FC<{ participant: Participant }> = ({ participant }) => {
-    const cacheKey = participant.id_establecimiento || 'independent';
-    const cachedValue = affiliationDetailsCache.get(cacheKey);
-  
-    const [details, setDetails] = useState<string>(cachedValue || 'Cargando...');
-  
-    useEffect(() => {
-      if (!cachedValue) {
-        getParticipantAffiliationDetails(participant).then(setDetails);
-      } else if (details !== cachedValue) {
-        setDetails(cachedValue);
-      }
-    }, [participant, getParticipantAffiliationDetails, cachedValue, details]);
-  
-    return <>{details}</>;
-  };
 
   const getCommissionsForParticipant = useCallback((participantId: string): string => {
     return participantMeetingCategories
@@ -273,7 +290,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
     const commissions = getCommissionsForParticipant(participantToViewOrEdit.id);
     return (<div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{participantToViewOrEdit.name}</h4>
-        <p><strong>Afiliación:</strong> <AffiliationDetail participant={participantToViewOrEdit} /></p>
+        <p><strong>Afiliación:</strong> <AffiliationDetail participant={participantToViewOrEdit} getParticipantAffiliationDetails={getParticipantAffiliationDetails} affiliationDetailsCache={affiliationDetailsCache} /></p>
         <p><strong>Rol/Cargo:</strong> {participantToViewOrEdit.role}</p>
         <p><strong>Correo:</strong> {participantToViewOrEdit.email || 'N/A'}</p>
         {participantToViewOrEdit.phone && <p><strong>Teléfono:</strong> {participantToViewOrEdit.phone}</p>}
@@ -299,7 +316,6 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mobile Card View */}
           <div className="md:hidden space-y-4 p-4">
             {filteredParticipants.length > 0 ? (
               filteredParticipants.map(participant => (
@@ -324,7 +340,6 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
             )}
           </div>
 
-          {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-800">
@@ -344,7 +359,9 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{participant.name}</div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">{participant.email}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300"><AffiliationDetail participant={participant} /></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                        <AffiliationDetail participant={participant} getParticipantAffiliationDetails={getParticipantAffiliationDetails} affiliationDetailsCache={affiliationDetailsCache}/>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{participant.role}</td>
                       <td className="px-6 py-4 whitespace-normal text-sm text-gray-500 dark:text-gray-300 max-w-xs truncate">{getCommissionsForParticipant(participant.id) || 'Ninguna'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
