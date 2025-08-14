@@ -1,10 +1,10 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode, useRef, useCallback } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { AuthSession, User, Subscription } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 
 type AuthContextType = {
-  session: Session | null;
+  session: AuthSession | null;
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
@@ -20,7 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,45 +30,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     setLoading(true);
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (_event === 'PASSWORD_RECOVERY') {
-        setAwaitingPasswordReset(true);
-      } else if (_event !== 'USER_UPDATED') {
-        setAwaitingPasswordReset(false);
-      }
-
-      setSession(session);
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser) {
-        const { data: userProfileData, error: profileError } = await supabase
-          .from('userprofiles')
-          .select(`
-            *,
-            roles (
-              id,
-              name
-            )
-          `)
-          .eq('id', currentUser.id)
-          .single();
-        
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error("Error fetching profile on auth state change:", profileError);
-          setProfile(null);
-        } else {
-          setProfile(userProfileData as UserProfile | null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        if (_event === 'PASSWORD_RECOVERY') {
+          setAwaitingPasswordReset(true);
+        } else if (_event !== 'USER_UPDATED') {
+          setAwaitingPasswordReset(false);
         }
-      } else {
+
+        setSession(session);
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+
+        if (currentUser) {
+          const { data: userProfileData, error: profileError } = await supabase
+            .from('userprofiles')
+            .select(`
+              *,
+              roles (
+                id,
+                name
+              )
+            `)
+            .eq('id', currentUser.id)
+            .single();
+          
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.error("Error fetching profile on auth state change:", profileError);
+            setProfile(null);
+          } else {
+            setProfile((userProfileData as any) as UserProfile | null);
+          }
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error("Error in onAuthStateChange handler:", error);
+        setSession(null);
+        setUser(null);
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 

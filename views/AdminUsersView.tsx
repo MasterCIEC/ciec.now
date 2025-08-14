@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile, Role } from '../types';
 import Button from '../components/ui/Button';
@@ -13,6 +13,9 @@ import TrashIcon from '../components/icons/TrashIcon';
 
 interface AdminUsersViewProps {
   onNavigateBack?: () => void;
+  users: UserProfile[];
+  roles: Role[];
+  onUpdate: () => void;
 }
 
 interface Permission {
@@ -95,14 +98,14 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
         try {
           const { data: permissionsData, error: permissionsError } = await supabase.from('permissions').select('*');
           if (permissionsError) throw permissionsError;
-          setAllPermissions(permissionsData || []);
+          setAllPermissions((permissionsData as any) || []);
 
           const { data: rolePermsData, error: rolePermsError } = await supabase.from('rolepermissions').select('role_id, permission_id');
           if (rolePermsError) throw rolePermsError;
 
           const permsMap: Record<number, number[]> = {};
           for (const role of initialRoles) {
-            permsMap[role.id] = rolePermsData
+            permsMap[role.id] = (rolePermsData as any[])
               .filter(rp => rp.role_id === role.id)
               .map(rp => rp.permission_id);
           }
@@ -183,7 +186,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
       if (permsToAdd.length > 0) {
         const { error } = await supabase
           .from('rolepermissions')
-          .insert(permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id })));
+          .insert(permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id })) as any);
         if (error) throw error;
       }
       
@@ -219,7 +222,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
     setRoleFormSubmitting(true);
     try {
       if (roleFormMode === 'create') {
-        const { data, error } = await supabase.from('roles').insert([{ name: roleNameInput.trim() }]).select().single();
+        const { data, error } = await supabase.from('roles').insert([{ name: roleNameInput.trim() }] as any).select().single();
         if (error) throw error;
         setSaveResultModalInfo({ title: "Éxito", message: "Rol creado con éxito.", success: true });
         onRolesUpdated();
@@ -227,7 +230,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
         setRoles(prev => [...prev, newRole]);
         setSelectedRole(newRole);
       } else if (roleFormMode === 'edit' && roleToManage) {
-        const { error } = await supabase.from('roles').update({ name: roleNameInput.trim() }).eq('id', roleToManage.id);
+        const { error } = await supabase.from('roles').update({ name: roleNameInput.trim() } as any).eq('id', roleToManage.id);
         if (error) throw error;
         setSaveResultModalInfo({ title: "Éxito", message: "Rol actualizado con éxito.", success: true });
         onRolesUpdated();
@@ -429,86 +432,33 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
 };
 
 
-const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack }) => {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, roles, onUpdate }) => {
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<{type: 'success' | 'error', content: string} | null>(null);
-  const { session, profile } = useAuth();
-
-  const fetchUsersAndRoles = useCallback(async () => {
-    if (!session) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: usersData, error: usersError } = await supabase
-        .from('userprofiles')
-        .select(`
-          id,
-          full_name,
-          role_id,
-          is_approved,
-          roles (
-            id,
-            name
-          )
-        `);
-
-      if (usersError) throw usersError;
-      setUsers((usersData as UserProfile[]) || []);
-
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('roles')
-        .select('*')
-        .order('name');
-      
-      if (rolesError) throw rolesError;
-      setRoles(rolesData || []);
-
-    } catch (err: any) {
-      setError(err.message);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [session]);
-
-  useEffect(() => {
-    fetchUsersAndRoles();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') fetchUsersAndRoles();
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchUsersAndRoles]);
+  const { profile } = useAuth();
 
   const handleApproveUser = useCallback(async (userId: string) => {
     const { error } = await supabase
       .from('userprofiles')
-      .update({ is_approved: true })
+      .update({ is_approved: true } as any)
       .eq('id', userId);
     
     if (error) alert(`Error al aprobar usuario: ${error.message}`);
-    else fetchUsersAndRoles();
-  }, [fetchUsersAndRoles]);
+    else onUpdate();
+  }, [onUpdate]);
 
   const handleRoleChange = useCallback(async (userId: string, newRoleId: string) => {
     const { error } = await supabase
       .from('userprofiles')
-      .update({ role_id: newRoleId ? parseInt(newRoleId, 10) : null })
+      .update({ role_id: newRoleId ? parseInt(newRoleId, 10) : null } as any)
       .eq('id', userId);
 
     if (error) alert(`Error al cambiar el rol: ${error.message}`);
-    else fetchUsersAndRoles();
-  }, [fetchUsersAndRoles]);
+    else onUpdate();
+  }, [onUpdate]);
   
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -528,12 +478,8 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack }) => {
       setInviteLoading(false);
     }
   };
-
-
-  if (loading) return <div className="p-6">Cargando usuarios...</div>;
-  if (error) return <div className="p-6 text-red-500">Error: {error}</div>;
   
-  const roleOptions = [{ value: '', label: 'Sin Rol' }, ...roles.map(r => ({ value: r.id, label: r.name }))];
+  const roleOptions = [{ value: '', label: 'Sin Rol' }, ...roles.map(r => ({ value: r.id.toString(), label: r.name }))];
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -603,7 +549,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack }) => {
         onClose={() => setIsPermissionsModalOpen(false)}
         roles={roles}
         profile={profile}
-        onRolesUpdated={fetchUsersAndRoles}
+        onRolesUpdated={onUpdate}
       />
       <Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} title="Invitar Nuevo Usuario">
         <form onSubmit={handleInviteUser} id="invite-form" className="space-y-4">

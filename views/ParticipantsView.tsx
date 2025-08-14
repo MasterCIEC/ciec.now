@@ -99,7 +99,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         const fetchEstName = async () => {
           if (!supabase) return;
           const { data } = await supabase.from('establecimientos_completos_remotos').select('nombre_establecimiento').eq('id_establecimiento', participantToViewOrEdit.id_establecimiento!).single();
-          if (data) setSearchTermEst(data.nombre_establecimiento);
+          if (data) setSearchTermEst((data as any).nombre_establecimiento);
         };
         fetchEstName();
       } else {
@@ -138,19 +138,25 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
       return;
     }
     setIsLoadingSugerencias(true);
-    const { data, error } = await supabase
-      .from('establecimientos_completos_remotos')
-      .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1, nombre_municipio')
-      .ilike('nombre_establecimiento', `%${term}%`)
-      .limit(5);
+    try {
+      const { data, error } = await supabase
+        .from('establecimientos_completos_remotos')
+        .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1, nombre_municipio')
+        .ilike('nombre_establecimiento', `%${term}%`)
+        .limit(5);
 
-    if (error) {
-      console.error("Error buscando establecimientos:", error);
+      if (error) {
+        console.error("Error buscando establecimientos:", error);
+        setEstablecimientoSugeridos([]);
+      } else {
+        setEstablecimientoSugeridos((data as any) as Company[]);
+      }
+    } catch (e) {
+      console.error("An unexpected error occurred while searching for establishments:", e);
       setEstablecimientoSugeridos([]);
-    } else {
-      setEstablecimientoSugeridos(data as Company[]);
+    } finally {
+      setIsLoadingSugerencias(false);
     }
-    setIsLoadingSugerencias(false);
   }, []);
 
   const handleSelectEstablecimiento = (est: Company) => {
@@ -232,7 +238,7 @@ const ParticipantsView: React.FC<ParticipantsViewProps> = ({
         .eq('rif_institucion', RIF_GREMIO)
         .single();
 
-    const detailString = affData ? `Afiliado: ${estData.nombre_establecimiento}` : `Externo: ${estData.nombre_establecimiento}`;
+    const detailString = affData ? `Afiliado: ${(estData as any).nombre_establecimiento}` : `Externo: ${(estData as any).nombre_establecimiento}`;
     setAffiliationDetailsCache(prev => new Map(prev).set(cacheKey, detailString));
     return detailString;
   }, [affiliationDetailsCache, RIF_GREMIO]);

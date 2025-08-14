@@ -30,7 +30,7 @@ const AccountView: React.FC<AccountViewProps> = ({ onNavigateBack }) => {
       const { error: userError } = await supabase.auth.updateUser({ data: { full_name: fullName } });
       if (userError) throw userError;
 
-      const { error: profileError } = await supabase.from('userprofiles').update({ full_name: fullName }).eq('id', user.id);
+      const { error: profileError } = await supabase.from('userprofiles').update({ full_name: fullName } as any).eq('id', user.id);
       if (profileError) throw profileError;
 
       setMessage({ type: 'success', content: 'Nombre actualizado con éxito.' });
