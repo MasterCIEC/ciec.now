@@ -16,29 +16,13 @@ export type Database = {
         Row: { id: string; name: string; id_establecimiento: string | null; role: string | null; email: string | null; phone: string | null };
         Insert: { id?: string; name: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
         Update: { name?: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
-        Relationships: [
-          {
-            foreignKeyName: 'participants_id_establecimiento_fkey';
-            columns: ['id_establecimiento'];
-            isOneToOne: false;
-            referencedRelation: 'establecimientos_completos_remotos';
-            referencedColumns: ['id_establecimiento'];
-          }
-        ];
+        Relationships: [];
       },
       Meetings: {
         Row: { id: string; subject: string; commission_id: string; date: string; start_time: string | null; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null };
         Insert: { id?: string; subject: string; commission_id: string; date: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
         Update: { subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
-        Relationships: [
-          {
-            foreignKeyName: 'meetings_commission_id_fkey';
-            columns: ['commission_id'];
-            isOneToOne: false;
-            referencedRelation: 'Commissions';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       EventCategories: {
         Row: { id: string; name: string };
@@ -56,106 +40,31 @@ export type Database = {
         Row: { participant_id: string; commission_id: string };
         Insert: { participant_id: string; commission_id: string };
         Update: { participant_id?: string; commission_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: 'participant_commissions_commission_id_fkey';
-            columns: ['commission_id'];
-            isOneToOne: false;
-            referencedRelation: 'Commissions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'participant_commissions_participant_id_fkey';
-            columns: ['participant_id'];
-            isOneToOne: false;
-            referencedRelation: 'Participants';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       meeting_attendees: {
         Row: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { meeting_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [
-          {
-            foreignKeyName: 'meeting_attendees_meeting_id_fkey';
-            columns: ['meeting_id'];
-            isOneToOne: false;
-            referencedRelation: 'Meetings';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'meeting_attendees_participant_id_fkey';
-            columns: ['participant_id'];
-            isOneToOne: false;
-            referencedRelation: 'Participants';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       event_attendees: {
         Row: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { event_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [
-          {
-            foreignKeyName: 'event_attendees_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'Events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_attendees_participant_id_fkey';
-            columns: ['participant_id'];
-            isOneToOne: false;
-            referencedRelation: 'Participants';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       event_organizing_commissions: {
         Row: { event_id: string; commission_id: string };
         Insert: { event_id: string; commission_id: string };
         Update: { event_id?: string; commission_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: 'event_organizing_commissions_commission_id_fkey';
-            columns: ['commission_id'];
-            isOneToOne: false;
-            referencedRelation: 'Commissions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_organizing_commissions_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'Events';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       event_organizing_categories: {
         Row: { event_id: string; category_id: string };
         Insert: { event_id: string; category_id: string };
         Update: { event_id?: string; category_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: 'event_organizing_categories_category_id_fkey';
-            columns: ['category_id'];
-            isOneToOne: false;
-            referencedRelation: 'EventCategories';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_organizing_categories_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'Events';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       roles: {
         Row: { id: number; name: string };
@@ -167,15 +76,7 @@ export type Database = {
         Row: { id: string; full_name: string | null; role_id: number | null; is_approved: boolean };
         Insert: { id: string; full_name?: string | null; role_id?: number | null; is_approved?: boolean };
         Update: { full_name?: string | null; role_id?: number | null; is_approved?: boolean };
-        Relationships: [
-          {
-            foreignKeyName: 'userprofiles_role_id_fkey';
-            columns: ['role_id'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       permissions: {
         Row: { id: number; action: string; subject: string };
@@ -187,22 +88,7 @@ export type Database = {
         Row: { role_id: number; permission_id: number };
         Insert: { role_id: number; permission_id: number };
         Update: { role_id?: number; permission_id?: number };
-        Relationships: [
-          {
-            foreignKeyName: 'rolepermissions_permission_id_fkey';
-            columns: ['permission_id'];
-            isOneToOne: false;
-            referencedRelation: 'permissions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'rolepermissions_role_id_fkey';
-            columns: ['role_id'];
-            isOneToOne: false;
-            referencedRelation: 'roles';
-            referencedColumns: ['id'];
-          }
-        ];
+        Relationships: [];
       },
       afiliaciones_remotos: {
         Row: {

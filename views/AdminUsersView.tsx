@@ -186,7 +186,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
       if (permsToAdd.length > 0) {
         const { error } = await supabase
           .from('rolepermissions')
-          .insert(permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id })) as any);
+          .insert(permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id })));
         if (error) throw error;
       }
       
@@ -222,7 +222,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
     setRoleFormSubmitting(true);
     try {
       if (roleFormMode === 'create') {
-        const { data, error } = await supabase.from('roles').insert([{ name: roleNameInput.trim() }] as any).select().single();
+        const { data, error } = await supabase.from('roles').insert([{ name: roleNameInput.trim() }]).select().single();
         if (error) throw error;
         setSaveResultModalInfo({ title: "Éxito", message: "Rol creado con éxito.", success: true });
         onRolesUpdated();
@@ -230,7 +230,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
         setRoles(prev => [...prev, newRole]);
         setSelectedRole(newRole);
       } else if (roleFormMode === 'edit' && roleToManage) {
-        const { error } = await supabase.from('roles').update({ name: roleNameInput.trim() } as any).eq('id', roleToManage.id);
+        const { error } = await supabase.from('roles').update({ name: roleNameInput.trim() }).eq('id', roleToManage.id);
         if (error) throw error;
         setSaveResultModalInfo({ title: "Éxito", message: "Rol actualizado con éxito.", success: true });
         onRolesUpdated();
@@ -443,7 +443,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, 
   const handleApproveUser = useCallback(async (userId: string) => {
     const { error } = await supabase
       .from('userprofiles')
-      .update({ is_approved: true } as any)
+      .update({ is_approved: true })
       .eq('id', userId);
     
     if (error) alert(`Error al aprobar usuario: ${error.message}`);
@@ -453,7 +453,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, 
   const handleRoleChange = useCallback(async (userId: string, newRoleId: string) => {
     const { error } = await supabase
       .from('userprofiles')
-      .update({ role_id: newRoleId ? parseInt(newRoleId, 10) : null } as any)
+      .update({ role_id: newRoleId ? parseInt(newRoleId, 10) : null })
       .eq('id', userId);
 
     if (error) alert(`Error al cambiar el rol: ${error.message}`);

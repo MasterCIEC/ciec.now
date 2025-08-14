@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import Input from '../components/ui/Input';
 import AppLogo from '../components/AppLogo';
 import ExportIcon from '../components/icons/ExportIcon';
+import { useAuth } from '../contexts/AuthContext';
 
 declare global {
   interface Window {
@@ -56,6 +57,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({
   meetingAttendees, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories,
   onNavigateBack
 }) => {
+  const { profile } = useAuth();
   const [reportType, setReportType] = useState<ReportType>('weekly');
   const [selectedWeek, setSelectedWeek] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -63,6 +65,8 @@ const ReportsView: React.FC<ReportsViewProps> = ({
   const [customEndDate, setCustomEndDate] = useState('');
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  const isSuperAdmin = profile?.roles?.name === 'SuperAdmin';
 
   const getMeetingCategoryName = useCallback((id: string) => meetingCategories.find(c => c.id === id)?.name || 'Desconocida', [meetingCategories]);
   const getEventCategoryName = useCallback((id: string) => eventCategories.find(c => c.id === id)?.name || 'Desconocida', [eventCategories]);
@@ -394,7 +398,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({
                     <CardTitle>Vista Previa del Reporte</CardTitle>
                     <CardDescription>Período del {formatDateForHeader(reportData.startDate)} al {formatDateForHeader(reportData.endDate)}</CardDescription>
                 </div>
-                <Button onClick={handleDownloadPdf} disabled={isLoading}>
+                <Button onClick={handleDownloadPdf} disabled={isLoading || !isSuperAdmin} title={!isSuperAdmin ? "Solo SuperAdmins pueden exportar" : ""}>
                     <ExportIcon className="w-4 h-4 mr-2" />
                     {isLoading ? 'Generando PDF...' : 'Descargar PDF'}
                 </Button>

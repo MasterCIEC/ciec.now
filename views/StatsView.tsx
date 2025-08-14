@@ -8,6 +8,7 @@ import Input from '../components/ui/Input';
 import Modal from '../components/Modal';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import ExportIcon from '../components/icons/ExportIcon';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StatsViewProps {
   meetings: Meeting[];
@@ -35,6 +36,7 @@ const StatsView: React.FC<StatsViewProps> = ({
   participantMeetingCategories,
   onNavigateBack,
 }) => {
+  const { profile } = useAuth();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   // State for the new participant report feature
@@ -43,6 +45,7 @@ const StatsView: React.FC<StatsViewProps> = ({
   const [commissionSearchTerm, setCommissionSearchTerm] = useState('');
   const [selectedFieldsForReport, setSelectedFieldsForReport] = useState<string[]>(['role', 'email', 'phone', 'company']);
 
+  const isSuperAdmin = profile?.roles?.name === 'SuperAdmin';
 
   const categoryOptions = useMemo(() => [
     { value: '', label: 'Seleccione una comisión para ver detalles' },
@@ -310,7 +313,8 @@ const StatsView: React.FC<StatsViewProps> = ({
                 variant="secondary"
                 size="sm"
                 className="mt-4 sm:mt-0"
-                disabled={!statsForSelectedCategory}
+                disabled={!statsForSelectedCategory || !isSuperAdmin}
+                title={!isSuperAdmin ? "Solo SuperAdmins pueden exportar" : "Exportar Asistencia"}
               >
                 <ExportIcon className="w-4 h-4 mr-2" />
                 Exportar Asistencia
@@ -375,7 +379,7 @@ const StatsView: React.FC<StatsViewProps> = ({
           </Card>
       )}
 
-      <Card>
+      {isSuperAdmin && <Card>
         <CardHeader>
           <CardTitle>Reporte de Participantes por Comisión</CardTitle>
           <CardDescription>Exporte una lista de participantes para una o más comisiones seleccionadas.</CardDescription>
@@ -386,7 +390,7 @@ const StatsView: React.FC<StatsViewProps> = ({
             Generar Reporte de Participantes
           </Button>
         </CardContent>
-      </Card>
+      </Card>}
       
       <Modal
         isOpen={isParticipantReportModalOpen}

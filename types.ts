@@ -111,6 +111,11 @@ export interface Role {
   name: string;
 }
 
+export interface Permission {
+  action: string;
+  subject: string;
+}
+
 export interface UserProfile {
   id: string;
   full_name: string | null;

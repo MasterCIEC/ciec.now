@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, Event, EventCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -10,6 +12,7 @@ import Modal from '../components/Modal';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import AddToGoogleCalendar from '../components/AddToGoogleCalendar';
+import { useAuth } from '../contexts/AuthContext';
 
 // Importaciones de iconos corregidas (directas)
 import EditIcon from '../components/icons/EditIcon';
@@ -118,6 +121,7 @@ const AgendaView: React.FC<AgendaViewProps> = ({
     meetingAttendees, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories,
     onEditMeeting, onEditEvent, onQuickAddMeeting, onQuickAddEvent, onNavigateBack 
 }) => {
+  const { can } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>('month');
   const [selectedDayDetailsForModal, setSelectedDayDetailsForModal] = useState<{ date: Date; items: AgendaItem[] } | null>(null);
@@ -500,7 +504,7 @@ CIEC.Now`
                                 <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                             </Button>
                         )}
-                        <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                        <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`} disabled={item.type === 'meeting' ? !can('update', 'Meeting') : !can('update', 'Event')}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
                     </div>
                 </Card>
                 );
@@ -664,19 +668,23 @@ CIEC.Now`
           className="absolute z-10 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-600 py-1"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <a href="#" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+          <a href="#" className={`block px-4 py-2 text-sm ${can('create', 'Meeting') ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
             onClick={(e) => {
               e.preventDefault();
-              setQuickAdd({ type: 'meeting', date: contextMenu.date, x: contextMenu.x + 10, y: contextMenu.y + 10 });
-              setContextMenu(null);
+              if (can('create', 'Meeting')) {
+                setQuickAdd({ type: 'meeting', date: contextMenu.date, x: contextMenu.x + 10, y: contextMenu.y + 10 });
+                setContextMenu(null);
+              }
             }}>
             Añadir Reunión
           </a>
-          <a href="#" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+          <a href="#" className={`block px-4 py-2 text-sm ${can('create', 'Event') ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'}`}
             onClick={(e) => {
               e.preventDefault();
-              setQuickAdd({ type: 'event', date: contextMenu.date, x: contextMenu.x + 10, y: contextMenu.y + 10 });
-              setContextMenu(null);
+              if (can('create', 'Event')) {
+                setQuickAdd({ type: 'event', date: contextMenu.date, x: contextMenu.x + 10, y: contextMenu.y + 10 });
+                setContextMenu(null);
+              }
             }}>
             Añadir Evento
           </a>
@@ -741,7 +749,7 @@ CIEC.Now`
                             <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                         </Button>
                     )}
-                    <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
+                    <Button onClick={editHandler} variant="accent" size="sm" aria-label={`Editar ${itemTypeLabel.toLowerCase()}: ${item.subject}`} disabled={item.type === 'meeting' ? !can('update', 'Meeting') : !can('update', 'Event')}><EditIcon className="w-4 h-4 mr-1"/> Ver/Editar</Button>
                   </div>
                 </Card>
                 );
