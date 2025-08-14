@@ -11,6 +11,8 @@ type AuthContextType = {
   signOut: (options?: { dueToInactivity?: boolean }) => Promise<void>;
   showInactivityModal: boolean;
   closeInactivityModal: () => void;
+  awaitingPasswordReset: boolean;
+  setAwaitingPasswordReset: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,42 +25,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInactivityModal, setShowInactivityModal] = useState(false);
+  const [awaitingPasswordReset, setAwaitingPasswordReset] = useState(false);
   const inactivityTimer = useRef<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') {
+        setAwaitingPasswordReset(true);
+      } else if (_event !== 'USER_UPDATED') {
+        setAwaitingPasswordReset(false);
+      }
+
       setSession(session);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
       if (currentUser) {
-        // Fetch profile first, then role, to avoid issues with relational queries and missing type definitions.
         const { data: userProfileData, error: profileError } = await supabase
           .from('userprofiles')
-          .select('*')
+          .select(`
+            *,
+            roles (
+              id,
+              name
+            )
+          `)
           .eq('id', currentUser.id)
           .single();
         
         if (profileError && profileError.code !== 'PGRST116') {
           console.error("Error fetching profile on auth state change:", profileError);
           setProfile(null);
-        } else if (userProfileData) {
-          let finalProfile: UserProfile = userProfileData as UserProfile;
-          if (userProfileData.role_id) {
-            const { data: roleData, error: roleError } = await supabase
-              .from('roles')
-              .select('id, name')
-              .eq('id', userProfileData.role_id)
-              .single();
-            
-            if (!roleError && roleData) {
-              finalProfile.roles = roleData;
-            }
-          }
-          setProfile(finalProfile);
         } else {
-            setProfile(null);
+          setProfile(userProfileData as UserProfile | null);
         }
       } else {
         setProfile(null);
@@ -123,6 +123,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signOut,
     showInactivityModal,
     closeInactivityModal,
+    awaitingPasswordReset,
+    setAwaitingPasswordReset,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

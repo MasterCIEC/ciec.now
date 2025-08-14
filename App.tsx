@@ -1,3 +1,5 @@
+
+
 // App.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -31,11 +33,13 @@ import ManageEventCategoriesView from './views/ManageEventCategoriesView';
 import StatsView from './views/StatsView';
 import ReportsView from './views/ReportsView';
 import AdminUsersView from './views/AdminUsersView';
+import UpdatePasswordView from './views/UpdatePasswordView';
+import AccountView from './views/AccountView';
 import { Theme } from './components/ThemeToggleButton';
 import Button from './components/ui/Button';
 
 const AppContent = (): JSX.Element => {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, awaitingPasswordReset, setAwaitingPasswordReset } = useAuth();
   
   const [activeView, setActiveView] = useState<ViewKey>(ViewKey.MainMenuView);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -204,7 +208,8 @@ const AppContent = (): JSX.Element => {
       </div>
     );
   }
-
+  
+  if (awaitingPasswordReset) return <UpdatePasswordView onPasswordUpdated={() => setAwaitingPasswordReset(false)} />;
   if (!session) return <AuthView />;
   if (!profile?.is_approved) return <PendingApprovalView />;
   
@@ -242,7 +247,7 @@ const AppContent = (): JSX.Element => {
       .from('Participants').insert([participantToSupabase(participantWithId)]).select('id').single();
     if (participantError) { console.error('Error al añadir participante:', participantError.message); return; }
     if (newParticipantEntry && selectedCategoryIds.length > 0) {
-      const categoryLinks = selectedCategoryIds.map(category_id => ({ participant_id: newParticipantEntry.id, commission_id: category_id }));
+      const categoryLinks = selectedCategoryIds.map(category_id => ({ participant_id: newParticipantEntry.id as string, commission_id: category_id }));
       const { error: categoryError } = await supabase.from('participant_commissions').insert(categoryLinks);
       if (categoryError) console.error('Error al enlazar categorías con participante:', categoryError.message);
     }
@@ -283,7 +288,7 @@ const AppContent = (): JSX.Element => {
       selectedAttendeesInPersonIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'in_person' }));
       selectedAttendeesOnlineIds.forEach(participant_id => attendeesToInsert.push({ participant_id, attendance_type: 'online' }));
       if (attendeesToInsert.length > 0) {
-        const finalAttendees = attendeesToInsert.map(att => ({ ...att, meeting_id: newMeeting.id }));
+        const finalAttendees = attendeesToInsert.map(att => ({ ...att, meeting_id: newMeeting.id as string }));
         const { error: attendeesError } = await supabase.from('meeting_attendees').insert(finalAttendees);
         if (attendeesError) console.error('Error al añadir asistentes a la reunión:', attendeesError.message);
       }
@@ -335,10 +340,10 @@ const AppContent = (): JSX.Element => {
     if (newEvent) {
       if (selectedOrganizerIds.length > 0) {
         if (transformedEventData.organizerType === 'meeting_category') {
-          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id, commission_id: id }));
+          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id as string, commission_id: id }));
           await supabase.from('event_organizing_commissions').insert(links);
         } else {
-          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id, category_id: id }));
+          const links = selectedOrganizerIds.map(id => ({ event_id: newEvent.id as string, category_id: id }));
           await supabase.from('event_organizing_categories').insert(links);
         }
       }
@@ -346,7 +351,7 @@ const AppContent = (): JSX.Element => {
       selectedAttendeesInPersonIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'in_person' }));
       selectedAttendeesOnlineIds.forEach(p_id => attendeesToInsert.push({ participant_id: p_id, attendance_type: 'online' }));
       if (attendeesToInsert.length > 0) {
-        const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: newEvent.id }));
+        const finalAttendees = attendeesToInsert.map(att => ({ ...att, event_id: newEvent.id as string }));
         await supabase.from('event_attendees').insert(finalAttendees);
       }
     }
@@ -398,11 +403,11 @@ const AppContent = (): JSX.Element => {
     if (eventError) { console.error('Error al añadir evento rápido:', eventError.message); alert(`Error al guardar el evento: ${eventError.message}`); return; }
     if (newEvent) {
       if (transformedEventData.organizerType === 'meeting_category') {
-        const { error } = await supabase.from('event_organizing_commissions').insert([{ event_id: newEvent.id, commission_id: organizerId }]);
+        const { error } = await supabase.from('event_organizing_commissions').insert([{ event_id: newEvent.id as string, commission_id: organizerId }]);
         if (error) console.error('Error al enlazar categoría de reunión con evento:', error.message);
         else fetchEventOrganizingMeetingCategories();
       } else {
-        const { error } = await supabase.from('event_organizing_categories').insert([{ event_id: newEvent.id, category_id: organizerId }]);
+        const { error } = await supabase.from('event_organizing_categories').insert([{ event_id: newEvent.id as string, category_id: organizerId }]);
         if (error) console.error('Error al enlazar categoría de evento con evento:', error.message);
         else fetchEventOrganizingCategories();
       }
@@ -421,8 +426,7 @@ const AppContent = (): JSX.Element => {
   const handleUpdateMeetingCategory = async (category: MeetingCategory) => {
     if (!supabase) return;
     const { id, ...categoryData } = category;
-    const updateData: Database['public']['Tables']['Commissions']['Update'] = categoryData;
-    const { error } = await supabase.from('Commissions').update(updateData).eq('id', id);
+    const { error } = await supabase.from('Commissions').update(categoryData).eq('id', id);
     if (error) console.error('Error al actualizar categoría de reunión:', error.message);
     else fetchMeetingCategories();
   };
@@ -450,8 +454,7 @@ const AppContent = (): JSX.Element => {
   const handleUpdateEventCategory = async (category: EventCategory) => {
     if (!supabase) return;
     const { id, ...categoryData } = category;
-    const updateData: Database['public']['Tables']['EventCategories']['Update'] = categoryData;
-    const { error } = await supabase.from('EventCategories').update(updateData).eq('id', id);
+    const { error } = await supabase.from('EventCategories').update(categoryData).eq('id', id);
     if (error) console.error('Error al actualizar categoría de evento:', error.message);
     else fetchEventCategories();
   };
@@ -491,6 +494,8 @@ const AppContent = (): JSX.Element => {
         return <ReportsView meetings={meetings} events={events} participants={participants} companies={companies} meetingCategories={meetingCategories} eventCategories={eventCategories} meetingAttendees={meetingAttendees} eventAttendees={eventAttendees} eventOrganizingMeetingCategories={eventOrganizingMeetingCategories} eventOrganizingCategories={eventOrganizingCategories} onNavigateBack={() => navigate(ViewKey.MainMenuView)} />;
       case ViewKey.AdminUsersView:
         return <AdminUsersView onNavigateBack={() => navigate(ViewKey.MainMenuView)} />;
+      case ViewKey.AccountView:
+        return <AccountView onNavigateBack={() => navigate(ViewKey.MainMenuView)} />;
       default:
         return (<div className="flex flex-col items-center justify-center h-screen"><h2 className="text-2xl font-bold mb-4">Vista no encontrada</h2><Button onClick={() => navigate(ViewKey.MainMenuView)}>Volver al Menú Principal</Button></div>);
     }

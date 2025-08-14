@@ -12,6 +12,7 @@ export enum ViewKey {
   StatsView = 'STATS_VIEW',
   ReportsView = 'REPORTS_VIEW',
   AdminUsersView = 'ADMIN_USERS_VIEW',
+  AccountView = 'ACCOUNT_VIEW',
 }
 
 export interface MenuItem {
@@ -75,6 +76,7 @@ export interface Event {
   cost?: number;
   investment?: number;
   revenue?: number;
+  is_cancelled?: boolean;
 }
 
 export interface ParticipantMeetingCategory {

@@ -1,8 +1,8 @@
+
 // supabaseClient.ts
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Company, Meeting, Participant, Event } from './types';
-
 
 export type Database = {
   public: {
@@ -10,27 +10,27 @@ export type Database = {
       Commissions: {
         Row: { id: string; name: string };
         Insert: { id?: string; name: string };
-        Update: { name?: string };
+        Update: { id?: string; name?: string };
       },
       Participants: {
         Row: { id: string; name: string; id_establecimiento: string | null; role: string | null; email: string | null; phone: string | null };
         Insert: { id?: string; name: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
-        Update: { name?: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
+        Update: { id?: string; name?: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
       },
       Meetings: {
         Row: { id: string; subject: string; commission_id: string; date: string; start_time: string | null; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null };
         Insert: { id?: string; subject: string; commission_id: string; date: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
-        Update: { subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
+        Update: { id?: string; subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
       },
       EventCategories: {
         Row: { id: string; name: string };
         Insert: { id?: string; name: string };
-        Update: { name?: string };
+        Update: { id?: string; name?: string };
       },
       Events: {
         Row: { id: string; subject: string; date: string; start_time: string; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null; cost: number | null; investment: number | null; revenue: number | null; is_cancelled: boolean };
         Insert: { id?: string; subject: string; date: string; start_time: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean };
-        Update: { subject?: string; date?: string; start_time?: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean };
+        Update: { id?: string; subject?: string; date?: string; start_time?: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean };
       },
       participant_commissions: {
         Row: { participant_id: string; commission_id: string };
@@ -60,17 +60,17 @@ export type Database = {
       roles: {
         Row: { id: number; name: string };
         Insert: { id?: number; name: string };
-        Update: { name?: string };
+        Update: { id?: number; name?: string };
       },
       userprofiles: {
         Row: { id: string; full_name: string | null; role_id: number | null; is_approved: boolean };
         Insert: { id: string; full_name?: string | null; role_id?: number | null; is_approved?: boolean };
-        Update: { full_name?: string | null; role_id?: number | null; is_approved?: boolean };
+        Update: { id?: string; full_name?: string | null; role_id?: number | null; is_approved?: boolean };
       },
       permissions: {
         Row: { id: number; action: string; subject: string };
         Insert: { id?: number; action: string; subject: string };
-        Update: { action?: string; subject?: string };
+        Update: { id?: number; action?: string; subject?: string };
       },
       rolepermissions: {
         Row: { role_id: number; permission_id: number };
@@ -161,15 +161,15 @@ export const meetingFromSupabase = (dbMeeting: any): Meeting => ({ id: dbMeeting
 export const eventToSupabase = (event: Omit<Event, 'id'> & { id?: string }): Database['public']['Tables']['Events']['Insert'] => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { organizerType, ...restOfEventData } = event;
-    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, };
+    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled };
     if (restOfEventData.id) { data.id = restOfEventData.id; }
     return data;
 };
 export const eventToSupabaseForUpdate = (event: Omit<Event, 'id'>): Database['public']['Tables']['Events']['Update'] => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { organizerType, ...restOfEventData } = event;
-    return { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, };
+    return { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled };
 };
-export const eventFromSupabase = (dbEvent: any): Omit<Event, 'organizerType'> & { id: string } => ({ id: dbEvent.id, subject: dbEvent.subject, date: dbEvent.date, startTime: dbEvent.start_time, endTime: dbEvent.end_time, location: dbEvent.location, externalParticipantsCount: dbEvent.external_participants_count, description: dbEvent.description, cost: dbEvent.cost, investment: dbEvent.investment, revenue: dbEvent.revenue, });
+export const eventFromSupabase = (dbEvent: any): Omit<Event, 'organizerType'> & { id: string } => ({ id: dbEvent.id, subject: dbEvent.subject, date: dbEvent.date, startTime: dbEvent.start_time, endTime: dbEvent.end_time, location: dbEvent.location, externalParticipantsCount: dbEvent.external_participants_count, description: dbEvent.description, cost: dbEvent.cost, investment: dbEvent.investment, revenue: dbEvent.revenue, is_cancelled: dbEvent.is_cancelled });
 
 export { supabase };

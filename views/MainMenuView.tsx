@@ -1,7 +1,7 @@
 import React from 'react';
 import { ViewKey, UserProfile } from '../types';
 import { Card } from '../components/ui/Card';
-import { GALLERY_MENU_ITEMS, ADMIN_MENU_ITEMS } from '../constants';
+import { GALLERY_MENU_ITEMS, ADMIN_MENU_ITEMS, USER_MENU_ITEMS } from '../constants';
 import ThemeToggleButton, { Theme } from '../components/ThemeToggleButton';
 import { useAuth } from '../contexts/AuthContext';
 import AppLogo from '../components/AppLogo';
@@ -68,15 +68,7 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
       </div>
       
       <div className="w-full max-w-6xl flex flex-col gap-12">
-        {isAdmin && (
-          <section>
-            <SectionHeader title="Administración" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {ADMIN_MENU_ITEMS.map(renderCard)}
-            </div>
-          </section>
-        )}
-
+        
         <section>
           <SectionHeader title="Vista y Planificación" />
           <div className="grid grid-cols-1 gap-6">
@@ -103,6 +95,14 @@ const MainMenuView: React.FC<MainMenuViewProps> = ({ onNavigate, currentTheme, t
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {analysisItems.map(renderCard)}
           </div>
+        </section>
+
+        <section>
+            <SectionHeader title="Configuración" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {USER_MENU_ITEMS.map(renderCard)}
+                {isAdmin && ADMIN_MENU_ITEMS.map(renderCard)}
+            </div>
         </section>
       </div>
     </div>

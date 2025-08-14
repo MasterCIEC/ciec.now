@@ -11,6 +11,7 @@ import EventCategoriesIcon from './components/icons/EventCategoriesIcon';
 import StatsIcon from './components/icons/StatsIcon';
 import ReportIcon from './components/icons/ReportIcon';
 import AdminIcon from './components/icons/AdminIcon';
+import UserIcon from './components/icons/UserIcon';
 
 export const GALLERY_MENU_ITEMS: MenuItem[] = [
   {
@@ -86,6 +87,16 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     viewKey: ViewKey.AdminUsersView,
     description: 'Aprobar nuevos usuarios, asignar roles y gestionar el acceso a la aplicación.'
   }
+];
+
+export const USER_MENU_ITEMS: MenuItem[] = [
+    {
+        id: 'account',
+        name: 'Mi Cuenta',
+        icon: UserIcon,
+        viewKey: ViewKey.AccountView,
+        description: 'Gestiona tu información personal, correo electrónico y contraseña.'
+    }
 ];
 
 export const generateId = (): string => {
