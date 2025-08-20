@@ -67,7 +67,7 @@ const initialEventFormState: Omit<Event, 'id'> = {
   flyer_url: '',
 };
 
-const TOTAL_STEPS_CREATE = 4; 
+const TOTAL_STEPS_CREATE = 4;
 type ModalMode = 'create' | 'edit' | 'view';
 
 const normalizeString = (str: string): string => {
@@ -125,7 +125,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [companySuggestions, setCompanySuggestions] = useState<Company[]>([]);
 
   const [tempOrganizerTypeModal, setTempOrganizerTypeModal] = useState<'meeting_category' | 'category'>('meeting_category');
-  
+
   const [flyerFile, setFlyerFile] = useState<File | null>(null);
   const [flyerPreview, setFlyerPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -135,14 +135,14 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const getParticipantName = useCallback((id: string) => participants.find(p => p.id === id)?.name || 'Desconocido', [participants]);
   const getMeetingCategoryName = useCallback((id: string) => meetingCategories.find(c => c.id === id)?.name || 'Categoría de Reunión Desconocida', [meetingCategories]);
   const getEventCategoryName = useCallback((id: string) => eventCategories.find(ec => ec.id === id)?.name || 'Categoría Desconocida', [eventCategories]);
-  
+
   const getDisplayOrganizerNameForEvent = useCallback((eventItem: Event): string => {
     if (!eventItem) return 'Categoría no disponible';
 
     if (eventItem.organizerType === 'meeting_category') {
       const orgLinks = eventOrganizingMeetingCategories.filter(eoc => eoc.event_id === eventItem.id);
       const categoryNames = orgLinks.map(eoc => getMeetingCategoryName(eoc.meeting_category_id));
-      
+
       if (categoryNames.length === 0) return 'Cat. Reunión No Especificada';
       return `${categoryNames.join(', ')}`;
     } else { // category
@@ -193,10 +193,10 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
       }
     }
   }, [isCompanyEvent, selectedCompanyId, selectedOrganizerIdsState, formData.organizerType, companies, meetingCategories, eventCategories, modalMode]);
-  
+
   useEffect(() => {
     if (companySearchTerm.length > 2) {
-      const suggestions = companies.filter(c => 
+      const suggestions = companies.filter(c =>
         normalizeString(c.nombre_establecimiento).includes(normalizeString(companySearchTerm))
       ).slice(0, 5);
       setCompanySuggestions(suggestions);
@@ -226,16 +226,16 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
       const currentAttendees = eventAttendees.filter(ea => ea.event_id === initialEventToEdit.id);
       setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
       setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
-      
+
       setFlyerFile(null);
       setFlyerPreview(initialEventToEdit.flyer_url || null);
       setModalMode('edit');
-      setCurrentStep(1); 
+      setCurrentStep(1);
       setFormErrors({});
       setIsModalOpen(true);
     }
   }, [initialEventToEdit, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
-  
+
   useEffect(() => {
     if (isModalOpen && eventForViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
         setFormData({
@@ -256,7 +256,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         const currentAttendees = eventAttendees.filter(ea => ea.event_id === eventForViewOrEdit.id);
         setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
         setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
-        
+
         setFlyerFile(null);
         setFlyerPreview(eventForViewOrEdit.flyer_url || null);
     }
@@ -283,14 +283,14 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
 
   const handleOpenViewModal = (event: Event) => {
     if (onClearEditingEvent) onClearEditingEvent();
-    setEventForViewOrEdit(event); 
+    setEventForViewOrEdit(event);
     setFormErrors({}); setModalMode('view'); setIsModalOpen(true);
   };
 
   const switchToEditModeFromView = () => { if (eventForViewOrEdit) setModalMode('edit'); };
 
   const handleCloseModal = () => {
-    setIsModalOpen(false); 
+    setIsModalOpen(false);
     setFlyerFile(null);
     setFlyerPreview(null);
     if (onClearEditingEvent) onClearEditingEvent();
@@ -316,7 +316,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
 
     const to = participantEmails.join(',');
     const subject = encodeURIComponent(`Invitación: ${event.subject}`);
-    
+
     const formattedDate = new Date(event.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
     const body = encodeURIComponent(
@@ -369,8 +369,8 @@ CIEC.Now`
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
-  
-  const validateEditForm = () => { 
+
+  const validateEditForm = () => {
     const errors: Record<string, string> = {};
     if (!formData.subject.trim()) errors.subject = 'El asunto es obligatorio.';
     if (selectedOrganizerIdsState.length === 0) errors.organizerId = `Debe seleccionar al menos un(a) ${formData.organizerType === 'meeting_category' ? 'categoría de reunión' : 'categoría de evento'}.`;
@@ -393,14 +393,15 @@ CIEC.Now`
         setIsUploading(true);
         let flyerUrlToSave: string | null = null;
         if (flyerFile) {
-          const filePath = `public/${Date.now()}_${flyerFile.name}`;
-          const { error } = await supabase.storage.from('event_flyers').upload(filePath, flyerFile);
+          // --- CORRECCIÓN: Usar solo el nombre del archivo, sin prefijos de carpeta ---
+          const fileName = `${Date.now()}_${flyerFile.name}`;
+          const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile);
           if (error) {
             alert(`Error al subir el flyer: ${error.message}`);
             setIsUploading(false);
             return;
           }
-          const { data } = supabase.storage.from('event_flyers').getPublicUrl(filePath);
+          const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
           flyerUrlToSave = data.publicUrl;
         }
         const finalEventData = { ...formData, flyer_url: flyerUrlToSave || undefined };
@@ -418,14 +419,15 @@ CIEC.Now`
         let flyerUrlToSave: string | null | undefined = eventForViewOrEdit.flyer_url;
 
         if (flyerFile) {
-            const filePath = `public/${Date.now()}_${flyerFile.name}`;
-            const { error } = await supabase.storage.from('event_flyers').upload(filePath, flyerFile, { upsert: true });
+            // --- CORRECCIÓN: Usar solo el nombre del archivo, sin prefijos de carpeta ---
+            const fileName = `${Date.now()}_${flyerFile.name}`;
+            const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile, { upsert: true });
             if (error) {
                 alert(`Error al subir el flyer: ${error.message}`);
                 setIsUploading(false);
                 return;
             }
-            const { data } = supabase.storage.from('event_flyers').getPublicUrl(filePath);
+            const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
             flyerUrlToSave = data.publicUrl;
         } else if (flyerPreview === null) {
             flyerUrlToSave = undefined;
@@ -475,7 +477,7 @@ CIEC.Now`
       setTempSelectedEventParticipantIds(prev => [...new Set([...prev, ...allSelectableIds])]);
     }
   };
-  
+
   useEffect(() => {
     if (eventParticipantSelectAllModalCheckboxRef.current && isEventParticipantSelectorModalOpen) {
       const selectable = availableEventParticipantsForSelector.filter(p => !p.isDisabled);
@@ -503,29 +505,29 @@ CIEC.Now`
     else if (eventParticipantSelectionMode === 'attendeesOnline') setSelectedAttendeesOnline(tempSelectedEventParticipantIds);
     handleEventParticipantSelectionModalClose();
   };
-  
+
   const handleOpenOrganizerSelector = () => {
     setTempSelectedOrganizerIdsModal(selectedOrganizerIdsState);
     setTempOrganizerTypeModal(formData.organizerType);
     setOrganizerSearchTermModal('');
     setIsOrganizerSelectorModalOpen(true);
   };
-  
+
   const handleOrganizerSelectionModalClose = () => {
     setIsOrganizerSelectorModalOpen(false);
   };
-  
+
   const handleToggleOrganizerSelection = (id: string, type: 'meeting_category' | 'category') => {
     if (type !== tempOrganizerTypeModal) {
         setTempSelectedOrganizerIdsModal([id]);
         setTempOrganizerTypeModal(type);
     } else {
-        setTempSelectedOrganizerIdsModal(prev => 
+        setTempSelectedOrganizerIdsModal(prev =>
             prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
         );
     }
   };
-    
+
   const handleConfirmOrganizerSelection = () => {
     setSelectedOrganizerIdsState(tempSelectedOrganizerIdsModal);
     setFormData(prev => ({ ...prev, organizerType: tempOrganizerTypeModal }));
@@ -536,9 +538,9 @@ CIEC.Now`
   const handleAddNewCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim() || !addCatModalType) return;
-  
+
     const newId = generateId();
-  
+
     if (addCatModalType === 'meeting_category') {
       const newCategory: MeetingCategory = { id: newId, name: newCatName.trim() };
       onAddMeetingCategory(newCategory);
@@ -546,14 +548,14 @@ CIEC.Now`
       const newCategory: EventCategory = { id: newId, name: newCatName.trim() };
       onAddEventCategory(newCategory);
     }
-  
+
     if (addCatModalType !== tempOrganizerTypeModal) {
       setTempOrganizerTypeModal(addCatModalType);
       setTempSelectedOrganizerIdsModal([newId]);
     } else {
       setTempSelectedOrganizerIdsModal(prev => [...prev, newId]);
     }
-  
+
     setNewCatName('');
     setIsAddCatModalOpen(false);
     setAddCatModalType(null);
@@ -603,7 +605,7 @@ CIEC.Now`
         ...sidebarMeetingCategoryOrganizers.map(c => ({ type: 'meeting_category', id: c.id })),
         ...sidebarEventCategoryOrganizers.map(c => ({ type: 'category', id: c.id })),
     ];
-    
+
     const isSelectedOrganizerPresent = allOrganizers.some(
         org => org.id === selectedOrganizer?.id && org.type === selectedOrganizer?.type
     );
@@ -617,22 +619,22 @@ CIEC.Now`
 
   const filteredEvents = useMemo(() => {
     if (!selectedOrganizer) return [];
-    
+
     if (selectedOrganizer.type === 'meeting_category') {
         const eventIdsForCategory = eventOrganizingMeetingCategories
             .filter(link => link.meeting_category_id === selectedOrganizer.id)
             .map(link => link.event_id);
-        
+
         return eventsFilteredBySearch
             .filter(event => eventIdsForCategory.includes(event.id))
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.startTime || '').localeCompare(a.startTime || ''));
     }
-    
+
     if (selectedOrganizer.type === 'category') {
         const eventIdsForCategory = eventOrganizingCategories
             .filter(link => link.category_id === selectedOrganizer.id)
             .map(link => link.event_id);
-            
+
         return eventsFilteredBySearch
             .filter(event => eventIdsForCategory.includes(event.id))
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || (b.startTime || '').localeCompare(a.startTime || ''));
@@ -642,7 +644,7 @@ CIEC.Now`
   }, [eventsFilteredBySearch, selectedOrganizer, eventOrganizingMeetingCategories, eventOrganizingCategories]);
 
   const handleBackNavigation = () => { if (onClearEditingEvent) onClearEditingEvent(); if (onNavigateBack) onNavigateBack(); };
-  
+
   const handleFlyerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
@@ -679,7 +681,7 @@ CIEC.Now`
         }
     }
   };
-  
+
   const renderParticipantSelectionButton = (attendeeList: string[], mode: 'attendeesInPerson' | 'attendeesOnline', label: string) => (
     <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
@@ -687,10 +689,10 @@ CIEC.Now`
         {attendeeList.length > 0 && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-h-16 overflow-y-auto p-1 border dark:border-gray-600 rounded">{attendeeList.map(getParticipantName).join(', ')}</div>)}
     </div>
   );
-  
+
   const organizerTypeLabel = tempOrganizerTypeModal === 'meeting_category' ? 'Categorías de Reunión' : 'Categorías de Evento';
   const selectedOrganizerNames = selectedOrganizerIdsState.map(id => formData.organizerType === 'meeting_category' ? getMeetingCategoryName(id) : getEventCategoryName(id)).join(', ');
-  
+
   const renderOrganizerSelectionButton = () => (
       <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoría(s)</label>
@@ -717,13 +719,13 @@ CIEC.Now`
             </div>
             {isCompanyEvent && (
               <div className="relative">
-                <Input 
-                  label="Nombre de la Empresa" 
-                  value={companySearchTerm} 
-                  onChange={(e) => { setCompanySearchTerm(e.target.value); setSelectedCompanyId(null); }} 
+                <Input
+                  label="Nombre de la Empresa"
+                  value={companySearchTerm}
+                  onChange={(e) => { setCompanySearchTerm(e.target.value); setSelectedCompanyId(null); }}
                   onBlur={handleCompanyInputBlur}
-                  placeholder="Escriba para buscar o registrar" 
-                  error={formErrors.company} 
+                  placeholder="Escriba para buscar o registrar"
+                  error={formErrors.company}
                 />
                 {companySuggestions.length > 0 && (
                   <ul className="absolute z-10 w-full bg-white dark:bg-gray-700 border rounded-md shadow-lg max-h-40 overflow-y-auto mt-1">
@@ -794,7 +796,7 @@ CIEC.Now`
     const inPersonCount = attendees.filter(ma => ma.attendance_type === 'in_person').length;
     const onlineCount = attendees.filter(ma => ma.attendance_type === 'online').length;
     const organizerName = getDisplayOrganizerNameForEvent(event);
-    
+
     return(
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{event.subject}</h4>
@@ -817,7 +819,7 @@ CIEC.Now`
   };
 
   const getModalTitle = () => {
-    const displayTotalSteps = TOTAL_STEPS_CREATE; 
+    const displayTotalSteps = TOTAL_STEPS_CREATE;
     if (modalMode === 'create') return `Añadir Nuevo Evento (Paso ${currentStep} de ${displayTotalSteps})`;
     if (modalMode === 'edit') return `Editar Evento: ${eventForViewOrEdit?.subject || 'Evento'}`;
     if (modalMode === 'view') return `Detalles del Evento`;
@@ -844,7 +846,7 @@ CIEC.Now`
                 break;
         }
     };
-    
+
     const meetingCategoriesForModal = useMemo(() => meetingCategories.filter(c => normalizeString(c.name).includes(normalizeString(organizerSearchTermModal))), [meetingCategories, organizerSearchTermModal]);
     const eventCategoriesForModal = useMemo(() => eventCategories.filter(c => normalizeString(c.name).includes(normalizeString(organizerSearchTermModal))), [eventCategories, organizerSearchTermModal]);
 
@@ -855,7 +857,7 @@ CIEC.Now`
         <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Programar Eventos</h1>
         <div className="flex space-x-2"><Button onClick={handleOpenCreateModal} variant="primary"><PlusIcon className="w-5 h-5 mr-2" /> Añadir Evento</Button>{onNavigateBack && (<Button onClick={handleBackNavigation} variant="secondary">Volver al Menú</Button>)}</div>
       </div>
-      
+
       <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden">
         {/* Sidebar */}
         <aside className="md:w-64 flex-shrink-0">
@@ -1021,7 +1023,7 @@ CIEC.Now`
         </div>
         <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-slate-700"><Button variant="secondary" onClick={handleOrganizerSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmOrganizerSelection}>Confirmar</Button></div>
       </Modal>
-      
+
       <Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder="Buscar participante por nombre..." value={eventParticipantSearchTerm} onChange={(e) => setEventParticipantSearchTerm(e.target.value)} autoFocus />
             {availableEventParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-participants-modal" className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700" ref={eventParticipantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredEventParticipants} /><label htmlFor="select-all-participants-modal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}

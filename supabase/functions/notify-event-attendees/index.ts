@@ -14,7 +14,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 // IMPORTANTE: Esta es una URL de marcador de posición.
 // Deberá ser reemplazada por la URL real del webhook de Make.com en el Paso 4.
-const MAKE_WEBHOOK_URL = 'https://hook.us1.make.com/REEMPLAZAR_ESTO'
+const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/5xvals5fmiyzm4lsj69qpj128eeioo1o'
 
 serve(async (req) => {
   // Manejo de la solicitud pre-vuelo para CORS
