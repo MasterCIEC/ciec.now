@@ -19,9 +19,9 @@ export type Database = {
         Relationships: [];
       },
       Meetings: {
-        Row: { id: string; subject: string; commission_id: string; date: string; start_time: string | null; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null };
-        Insert: { id?: string; subject: string; commission_id: string; date: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
-        Update: { subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null };
+        Row: { id: string; subject: string; commission_id: string; date: string; start_time: string | null; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null; is_cancelled: boolean };
+        Insert: { id?: string; subject: string; commission_id: string; date: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; is_cancelled?: boolean };
+        Update: { subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; is_cancelled?: boolean };
         Relationships: [];
       },
       EventCategories: {
@@ -165,17 +165,17 @@ export const participantToSupabaseForUpdate = (participant: Omit<Participant, 'i
 export const participantFromSupabase = (dbParticipant: any): Participant => ({ id: dbParticipant.id, name: dbParticipant.name, id_establecimiento: dbParticipant.id_establecimiento, role: dbParticipant.role ?? null, email: dbParticipant.email ?? null, phone: dbParticipant.phone, });
 
 export const meetingToSupabase = (meeting: Omit<Meeting, 'id'> & { id?: string }): Database['public']['Tables']['Meetings']['Insert'] => {
-    const data: Database['public']['Tables']['Meetings']['Insert'] = { subject: meeting.subject, commission_id: meeting.meetingCategoryId, date: meeting.date, start_time: meeting.startTime || null, end_time: meeting.endTime || null, location: meeting.location || null, external_participants_count: meeting.externalParticipantsCount ?? null, description: meeting.description || null, };
+    const data: Database['public']['Tables']['Meetings']['Insert'] = { subject: meeting.subject, commission_id: meeting.meetingCategoryId, date: meeting.date, start_time: meeting.startTime || null, end_time: meeting.endTime || null, location: meeting.location || null, external_participants_count: meeting.externalParticipantsCount ?? null, description: meeting.description || null, is_cancelled: meeting.is_cancelled ?? false };
     if (meeting.id) { data.id = meeting.id; }
     return data;
 };
-export const meetingToSupabaseForUpdate = (meeting: Omit<Meeting, 'id'>): Database['public']['Tables']['Meetings']['Update'] => ({ subject: meeting.subject, commission_id: meeting.meetingCategoryId, date: meeting.date, start_time: meeting.startTime || null, end_time: meeting.endTime || null, location: meeting.location || null, external_participants_count: meeting.externalParticipantsCount ?? null, description: meeting.description || null, });
-export const meetingFromSupabase = (dbMeeting: any): Meeting => ({ id: dbMeeting.id, subject: dbMeeting.subject, meetingCategoryId: dbMeeting.commission_id, date: dbMeeting.date, startTime: dbMeeting.start_time, endTime: dbMeeting.end_time, location: dbMeeting.location, externalParticipantsCount: dbMeeting.external_participants_count, description: dbMeeting.description, });
+export const meetingToSupabaseForUpdate = (meeting: Omit<Meeting, 'id'>): Database['public']['Tables']['Meetings']['Update'] => ({ subject: meeting.subject, commission_id: meeting.meetingCategoryId, date: meeting.date, start_time: meeting.startTime || null, end_time: meeting.endTime || null, location: meeting.location || null, external_participants_count: meeting.externalParticipantsCount ?? null, description: meeting.description || null, is_cancelled: meeting.is_cancelled });
+export const meetingFromSupabase = (dbMeeting: any): Meeting => ({ id: dbMeeting.id, subject: dbMeeting.subject, meetingCategoryId: dbMeeting.commission_id, date: dbMeeting.date, startTime: dbMeeting.start_time, endTime: dbMeeting.end_time, location: dbMeeting.location, externalParticipantsCount: dbMeeting.external_participants_count, description: dbMeeting.description, is_cancelled: dbMeeting.is_cancelled });
 
 export const eventToSupabase = (event: Omit<Event, 'id'> & { id?: string }): Database['public']['Tables']['Events']['Insert'] => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { organizerType, ...restOfEventData } = event;
-    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled };
+    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled ?? false };
     if (restOfEventData.id) { data.id = restOfEventData.id; }
     return data;
 };

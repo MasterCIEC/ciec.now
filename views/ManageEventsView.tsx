@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { supabase } from '../supabaseClient';
 import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory, Company } from '../types';
 import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
@@ -62,6 +63,8 @@ const initialEventFormState: Omit<Event, 'id'> = {
   cost: undefined,
   investment: undefined,
   revenue: undefined,
+  is_cancelled: false,
+  flyer_url: '',
 };
 
 const TOTAL_STEPS_CREATE = 4; 
@@ -105,7 +108,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [highlightedEventParticipantIndex, setHighlightedEventParticipantIndex] = useState(-1);
   const eventParticipantListRef = useRef<HTMLDivElement>(null);
 
-
   const [isOrganizerSelectorModalOpen, setIsOrganizerSelectorModalOpen] = useState(false);
   const [tempSelectedOrganizerIdsModal, setTempSelectedOrganizerIdsModal] = useState<string[]>([]);
   const [organizerSearchTermModal, setOrganizerSearchTermModal] = useState('');
@@ -113,19 +115,21 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
 
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
-  // New state for adding a new category on the fly
   const [isAddCatModalOpen, setIsAddCatModalOpen] = useState(false);
   const [addCatModalType, setAddCatModalType] = useState<'meeting_category' | 'category' | null>(null);
   const [newCatName, setNewCatName] = useState('');
 
-  // New state for intelligent subject
   const [isCompanyEvent, setIsCompanyEvent] = useState(false);
   const [companySearchTerm, setCompanySearchTerm] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [companySuggestions, setCompanySuggestions] = useState<Company[]>([]);
 
-  // New state for organizer modal
   const [tempOrganizerTypeModal, setTempOrganizerTypeModal] = useState<'meeting_category' | 'category'>('meeting_category');
+  
+  const [flyerFile, setFlyerFile] = useState<File | null>(null);
+  const [flyerPreview, setFlyerPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [notifyingEventId, setNotifyingEventId] = useState<string | null>(null);
 
 
   const getParticipantName = useCallback((id: string) => participants.find(p => p.id === id)?.name || 'Desconocido', [participants]);
@@ -151,15 +155,10 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   }, [eventOrganizingMeetingCategories, eventOrganizingCategories, getMeetingCategoryName, getEventCategoryName]);
 
   const handleCompanyInputBlur = () => {
-    // Use a timeout to allow a click on a suggestion to register before the suggestions disappear.
     setTimeout(() => {
       setCompanySuggestions([]);
     }, 200);
-
-    // If a company is already selected via ID, do nothing. The useEffect has already handled it.
     if (selectedCompanyId) return;
-
-    // If it's a company event and there's text in the search box, use it.
     if (modalMode === 'create' && isCompanyEvent && companySearchTerm.trim() && selectedOrganizerIdsState.length > 0) {
       const firstCategoryId = selectedOrganizerIdsState[0];
       const categoryName = formData.organizerType === 'meeting_category'
@@ -175,8 +174,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     }
   };
 
-
-  // Effect for intelligent subject
   useEffect(() => {
     if (modalMode === 'create' && isCompanyEvent && selectedCompanyId && selectedOrganizerIdsState.length > 0) {
       const company = companies.find(c => c.id_establecimiento === selectedCompanyId);
@@ -197,7 +194,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     }
   }, [isCompanyEvent, selectedCompanyId, selectedOrganizerIdsState, formData.organizerType, companies, meetingCategories, eventCategories, modalMode]);
   
-  // Effect for company search
   useEffect(() => {
     if (companySearchTerm.length > 2) {
       const suggestions = companies.filter(c => 
@@ -219,6 +215,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         externalParticipantsCount: initialEventToEdit.externalParticipantsCount || 0,
         description: initialEventToEdit.description || '',
         cost: initialEventToEdit.cost, investment: initialEventToEdit.investment, revenue: initialEventToEdit.revenue,
+        is_cancelled: initialEventToEdit.is_cancelled,
+        flyer_url: initialEventToEdit.flyer_url,
       });
       const currentOrganizers = initialEventToEdit.organizerType === 'meeting_category'
         ? eventOrganizingMeetingCategories.filter(eoc => eoc.event_id === initialEventToEdit.id).map(eoc => eoc.meeting_category_id)
@@ -229,6 +227,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
       setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
       setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
       
+      setFlyerFile(null);
+      setFlyerPreview(initialEventToEdit.flyer_url || null);
       setModalMode('edit');
       setCurrentStep(1); 
       setFormErrors({});
@@ -245,6 +245,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
             externalParticipantsCount: eventForViewOrEdit.externalParticipantsCount || 0,
             description: eventForViewOrEdit.description || '',
             cost: eventForViewOrEdit.cost, investment: eventForViewOrEdit.investment, revenue: eventForViewOrEdit.revenue,
+            is_cancelled: eventForViewOrEdit.is_cancelled,
+            flyer_url: eventForViewOrEdit.flyer_url,
         });
         const currentOrganizers = eventForViewOrEdit.organizerType === 'meeting_category'
             ? eventOrganizingMeetingCategories.filter(eoc => eoc.event_id === eventForViewOrEdit.id).map(eoc => eoc.meeting_category_id)
@@ -254,10 +256,12 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         const currentAttendees = eventAttendees.filter(ea => ea.event_id === eventForViewOrEdit.id);
         setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
         setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
+        
+        setFlyerFile(null);
+        setFlyerPreview(eventForViewOrEdit.flyer_url || null);
     }
   }, [eventForViewOrEdit, modalMode, isModalOpen, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
 
-  // Reset company event state when modal closes
   useEffect(() => {
     if (!isModalOpen) {
         setIsCompanyEvent(false);
@@ -272,6 +276,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     setEventForViewOrEdit(null);
     setFormData({...initialEventFormState, date: getTodayDateString()});
     setSelectedOrganizerIdsState([]); setSelectedAttendeesInPerson([]); setSelectedAttendeesOnline([]);
+    setFlyerFile(null);
+    setFlyerPreview(null);
     setCurrentStep(1); setFormErrors({}); setModalMode('create'); setIsModalOpen(true);
   };
 
@@ -285,6 +291,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
 
   const handleCloseModal = () => {
     setIsModalOpen(false); 
+    setFlyerFile(null);
+    setFlyerPreview(null);
     if (onClearEditingEvent) onClearEditingEvent();
   };
 
@@ -377,23 +385,56 @@ CIEC.Now`
     return Object.keys(errors).length === 0;
   };
 
-  const handleNextStepOrCreate = () => {
+  const handleNextStepOrCreate = async () => {
     if (validateCreateStep()) {
       if (currentStep < TOTAL_STEPS_CREATE) {
         setCurrentStep(prev => prev + 1);
       } else {
-        onAddEvent(formData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
+        setIsUploading(true);
+        let flyerUrlToSave: string | null = null;
+        if (flyerFile) {
+          const filePath = `public/${Date.now()}_${flyerFile.name}`;
+          const { error } = await supabase.storage.from('event_flyers').upload(filePath, flyerFile);
+          if (error) {
+            alert(`Error al subir el flyer: ${error.message}`);
+            setIsUploading(false);
+            return;
+          }
+          const { data } = supabase.storage.from('event_flyers').getPublicUrl(filePath);
+          flyerUrlToSave = data.publicUrl;
+        }
+        const finalEventData = { ...formData, flyer_url: flyerUrlToSave || undefined };
+        onAddEvent(finalEventData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
+        setIsUploading(false);
         handleCloseModal();
       }
     }
   };
   const handlePrevStep = () => { if (currentStep > 1) setCurrentStep(prev => prev - 1); };
 
-  const handleUpdateSubmit = () => {
+  const handleUpdateSubmit = async () => {
     if (eventForViewOrEdit && validateEditForm()) {
-      onUpdateEvent(eventForViewOrEdit.id, formData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
-      setEventForViewOrEdit({...formData, id: eventForViewOrEdit.id}); 
-      handleCloseModal(); 
+        setIsUploading(true);
+        let flyerUrlToSave: string | null | undefined = eventForViewOrEdit.flyer_url;
+
+        if (flyerFile) {
+            const filePath = `public/${Date.now()}_${flyerFile.name}`;
+            const { error } = await supabase.storage.from('event_flyers').upload(filePath, flyerFile, { upsert: true });
+            if (error) {
+                alert(`Error al subir el flyer: ${error.message}`);
+                setIsUploading(false);
+                return;
+            }
+            const { data } = supabase.storage.from('event_flyers').getPublicUrl(filePath);
+            flyerUrlToSave = data.publicUrl;
+        } else if (flyerPreview === null) {
+            flyerUrlToSave = undefined;
+        }
+
+        const finalEventData = { ...formData, flyer_url: flyerUrlToSave };
+        onUpdateEvent(eventForViewOrEdit.id, finalEventData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
+        setIsUploading(false);
+        handleCloseModal();
     }
   };
 
@@ -602,6 +643,43 @@ CIEC.Now`
 
   const handleBackNavigation = () => { if (onClearEditingEvent) onClearEditingEvent(); if (onNavigateBack) onNavigateBack(); };
   
+  const handleFlyerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        setFlyerFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setFlyerPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        setFlyerFile(null);
+        if (eventForViewOrEdit) {
+            setFlyerPreview(eventForViewOrEdit.flyer_url || null);
+        } else {
+            setFlyerPreview(null);
+        }
+    }
+  };
+
+  const handleNotify = async (eventId: string, eventSubject: string) => {
+    if (window.confirm(`¿Está seguro de que desea notificar a todos los asistentes del evento "${eventSubject}"?`)) {
+        setNotifyingEventId(eventId);
+        try {
+            const { error } = await supabase.functions.invoke('notify-event-attendees', {
+                body: { eventId },
+            });
+            if (error) throw error;
+            alert('Notificaciones enviadas con éxito.');
+        } catch (error: any) {
+            console.error('Error al notificar a los asistentes:', error);
+            alert(`Error al enviar notificaciones: ${error.message}`);
+        } finally {
+            setNotifyingEventId(null);
+        }
+    }
+  };
+  
   const renderParticipantSelectionButton = (attendeeList: string[], mode: 'attendeesInPerson' | 'attendeesOnline', label: string) => (
     <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
@@ -662,7 +740,20 @@ CIEC.Now`
         );
         case 2: return <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div><Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark]" /><Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} /></div>
         case 3: return <div className="space-y-4">{renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales (Opcional)')}{renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea (Opcional)')}<Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} /></div>;
-        case 4: return <div className="space-y-4"><Input label="Costo" name="cost" type="number" value={formData.cost ?? ''} onChange={handleNumberInputChange} error={formErrors.cost} prefix="$" placeholder="0.00" /><Input label="Inversión" name="investment" type="number" value={formData.investment ?? ''} onChange={handleNumberInputChange} error={formErrors.investment} prefix="$" placeholder="0.00" /><Input label="Ingresos" name="revenue" type="number" value={formData.revenue ?? ''} onChange={handleNumberInputChange} error={formErrors.revenue} prefix="$" placeholder="0.00" /></div>;
+        case 4: return <div className="space-y-4">
+            <Input label="Costo" name="cost" type="number" value={formData.cost ?? ''} onChange={handleNumberInputChange} error={formErrors.cost} prefix="$" placeholder="0.00" />
+            <Input label="Inversión" name="investment" type="number" value={formData.investment ?? ''} onChange={handleNumberInputChange} error={formErrors.investment} prefix="$" placeholder="0.00" />
+            <Input label="Ingresos" name="revenue" type="number" value={formData.revenue ?? ''} onChange={handleNumberInputChange} error={formErrors.revenue} prefix="$" placeholder="0.00" />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Flyer del Evento (Opcional)</label>
+              <Input type="file" accept="image/png, image/jpeg, image/webp" onChange={handleFlyerChange} />
+              {flyerPreview && (
+                  <div className="mt-2 relative w-fit">
+                      <img src={flyerPreview} alt="Vista previa del flyer" className="w-full max-w-sm h-auto object-contain rounded shadow" />
+                  </div>
+              )}
+            </div>
+          </div>;
         default: return null;
     }
   };
@@ -681,6 +772,18 @@ CIEC.Now`
       <Input label="Costo" name="cost" type="number" min="0" step="0.01" value={formData.cost ?? ''} onChange={handleNumberInputChange} error={formErrors.cost} prefix="$" placeholder="0.00" />
       <Input label="Inversión" name="investment" type="number" min="0" step="0.01" value={formData.investment ?? ''} onChange={handleNumberInputChange} error={formErrors.investment} prefix="$" placeholder="0.00" />
       <Input label="Ingresos" name="revenue" type="number" min="0" step="0.01" value={formData.revenue ?? ''} onChange={handleNumberInputChange} error={formErrors.revenue} prefix="$" placeholder="0.00" />
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Flyer del Evento</label>
+        <Input type="file" accept="image/png, image/jpeg, image/webp" onChange={handleFlyerChange} />
+        {flyerPreview && (
+            <div className="mt-2 relative w-fit">
+                <img src={flyerPreview} alt="Vista previa del flyer" className="w-full max-w-sm h-auto object-contain rounded shadow" />
+                <Button variant="danger" size="sm" onClick={() => { setFlyerFile(null); setFlyerPreview(null); }} className="absolute top-1 right-1 !p-1 h-auto">
+                    <TrashIcon className="w-4 h-4" />
+                </Button>
+            </div>
+        )}
+      </div>
     </div>
   );
 
@@ -695,6 +798,7 @@ CIEC.Now`
     return(
       <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
         <h4 className="text-2xl font-bold text-primary-600 dark:text-primary-400">{event.subject}</h4>
+        {event.flyer_url && <img src={event.flyer_url} alt="Flyer del evento" className="w-full h-auto object-contain rounded my-4" />}
         <p><strong>Categoría:</strong> {organizerName}</p>
         <p><strong>Fecha:</strong> {new Date(event.date).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</p>
         <p><strong>Hora:</strong> {formatTo12Hour(event.startTime)} {event.endTime ? `- ${formatTo12Hour(event.endTime)}` : '(En curso)'}</p>
@@ -828,7 +932,8 @@ CIEC.Now`
                         <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Fecha:</strong> {new Date(event.date).toLocaleDateString('es-ES', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Hora:</strong> {formatTo12Hour(event.startTime)}</p>
                       </div>
-                      <div className="flex-shrink-0 flex items-center space-x-2">
+                      <div className="flex-shrink-0 flex flex-col items-stretch gap-2">
+                          <Button onClick={(e) => { e.stopPropagation(); handleNotify(event.id, event.subject); }} variant="info" size="sm" className="!py-1 !px-2 !text-xs justify-center" disabled={notifyingEventId === event.id} aria-label={`Notificar a asistentes de ${event.subject}`}><EmailIcon className="w-3 h-3 mr-1"/>{notifyingEventId === event.id ? '...' : 'Notificar'}</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" className="!py-1 !px-2 !text-xs" aria-label={`Editar ${event.subject}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="danger" size="sm" className="!py-1 !px-2 !text-xs" aria-label={`Eliminar ${event.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
                       </div>
@@ -845,6 +950,7 @@ CIEC.Now`
                     {filteredEvents.map(event => (<tr key={event.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => handleOpenViewModal(event)}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{event.subject}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getDisplayOrganizerNameForEvent(event)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(event.date).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatTo12Hour(event.startTime)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
+                          <Button onClick={(e) => { e.stopPropagation(); handleNotify(event.id, event.subject); }} variant="info" size="sm" disabled={notifyingEventId === event.id} aria-label={`Notificar a asistentes de ${event.subject}`}><EmailIcon className="w-4 h-4 mr-1"/>{notifyingEventId === event.id ? 'Enviando...' : 'Notificar'}</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" aria-label={`Editar ${event.subject}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="danger" size="sm" aria-label={`Eliminar ${event.subject}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
                         </div>
@@ -863,17 +969,17 @@ CIEC.Now`
         <div className="flex justify-between items-center pt-6 mt-4 border-t border-gray-200 dark:border-gray-700">
           {modalMode === 'create' && (
             <>
-              <div><Button type="button" variant="secondary" onClick={handleCloseModal}>Cancelar</Button></div>
+              <div><Button type="button" variant="secondary" onClick={handleCloseModal} disabled={isUploading}>Cancelar</Button></div>
               <div className="flex items-center space-x-3">
-                {currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep}>Anterior</Button>)}
-                <Button type="button" variant="primary" onClick={handleNextStepOrCreate}>{currentStep === TOTAL_STEPS_CREATE ? 'Añadir Evento' : 'Siguiente'}</Button>
+                {currentStep > 1 && (<Button type="button" variant="secondary" onClick={handlePrevStep} disabled={isUploading}>Anterior</Button>)}
+                <Button type="button" variant="primary" onClick={handleNextStepOrCreate} disabled={isUploading}>{isUploading ? 'Guardando...' : (currentStep === TOTAL_STEPS_CREATE ? 'Añadir Evento' : 'Siguiente')}</Button>
               </div>
             </>
           )}
           {modalMode === 'edit' && (
             <>
-              <div><Button type="button" variant="danger" className="bg-red-600 text-white" onClick={handleCloseModal}>Cancelar</Button></div>
-              <Button type="button" variant="primary" onClick={handleUpdateSubmit}>Guardar Cambios</Button>
+              <div><Button type="button" variant="danger" className="bg-red-600 text-white" onClick={handleCloseModal} disabled={isUploading}>Cancelar</Button></div>
+              <Button type="button" variant="primary" onClick={handleUpdateSubmit} disabled={isUploading}>{isUploading ? 'Guardando...' : 'Guardar Cambios'}</Button>
             </>
           )}
           {modalMode === 'view' && eventForViewOrEdit && (
@@ -899,97 +1005,51 @@ CIEC.Now`
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <h4 className="font-semibold text-gray-800 dark:text-gray-200">Categorías de Evento</h4>
-                        <Button type="button" variant="accent" onClick={() => { setAddCatModalType('category'); setIsAddCatModalOpen(true); }} className="p-0 rounded-md h-8 w-8" aria-label="Añadir nueva categoría de evento"><PlusIcon className="w-6 h-6" /></Button>
+                        <Button type="button" variant="accent" onClick={() => { setIsAddCatModalOpen(true); setAddCatModalType('category'); }} size="sm" className="!p-1.5"><PlusIcon className="w-4 h-4" /></Button>
                     </div>
-                    <div className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1">
-                        {eventCategoriesForModal.map(c => (
-                            <div key={c.id} onClick={() => handleToggleOrganizerSelection(c.id, 'category')} className={`flex items-center p-1.5 rounded cursor-pointer ${tempOrganizerTypeModal !== 'category' ? 'opacity-50' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
-                                <input type="checkbox" id={`org-select-${c.id}`} checked={tempSelectedOrganizerIdsModal.includes(c.id)} readOnly className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
-                                <label htmlFor={`org-select-${c.id}`} className="ml-2 text-sm w-full pointer-events-none">{c.name}</label>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="max-h-48 overflow-y-auto border dark:border-slate-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700">{eventCategoriesForModal.map(cat => (<div key={cat.id} className="flex items-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600"><input type="checkbox" id={`cat-select-${cat.id}`} checked={tempOrganizerTypeModal === 'category' && tempSelectedOrganizerIdsModal.includes(cat.id)} onChange={() => handleToggleOrganizerSelection(cat.id, 'category')} className="h-4 w-4 text-primary-600 border-gray-300 rounded" /><label htmlFor={`cat-select-${cat.id}`} className="ml-2 text-sm w-full cursor-pointer">{cat.name}</label></div>))}</div>
                 </div>
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <h4 className="font-semibold text-gray-800 dark:text-gray-200">Categorías de Reunión</h4>
-                        <Button type="button" variant="accent" onClick={() => { setAddCatModalType('meeting_category'); setIsAddCatModalOpen(true); }} className="p-0 rounded-md h-8 w-8" aria-label="Añadir nueva categoría de reunión"><PlusIcon className="w-6 h-6" /></Button>
+                        <Button type="button" variant="accent" onClick={() => { setIsAddCatModalOpen(true); setAddCatModalType('meeting_category'); }} size="sm" className="!p-1.5"><PlusIcon className="w-4 h-4" /></Button>
                     </div>
-                    <div className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1">
-                        {meetingCategoriesForModal.map(c => (
-                            <div key={c.id} onClick={() => handleToggleOrganizerSelection(c.id, 'meeting_category')} className={`flex items-center p-1.5 rounded cursor-pointer ${tempOrganizerTypeModal !== 'meeting_category' ? 'opacity-50' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
-                                <input type="checkbox" id={`org-select-${c.id}`} checked={tempSelectedOrganizerIdsModal.includes(c.id)} readOnly className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
-                                <label htmlFor={`org-select-${c.id}`} className="ml-2 text-sm w-full pointer-events-none">{c.name}</label>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="max-h-48 overflow-y-auto border dark:border-slate-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700">{meetingCategoriesForModal.map(cat => (<div key={cat.id} className="flex items-center p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600"><input type="checkbox" id={`mcat-select-${cat.id}`} checked={tempOrganizerTypeModal === 'meeting_category' && tempSelectedOrganizerIdsModal.includes(cat.id)} onChange={() => handleToggleOrganizerSelection(cat.id, 'meeting_category')} className="h-4 w-4 text-primary-600 border-gray-300 rounded" /><label htmlFor={`mcat-select-${cat.id}`} className="ml-2 text-sm w-full cursor-pointer">{cat.name}</label></div>))}</div>
                 </div>
             </div>
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">Seleccionar una categoría de un tipo diferente reemplazará la selección actual.</div>
         </div>
-        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleOrganizerSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmOrganizerSelection}>Confirmar Selección</Button></div>
+        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-slate-700"><Button variant="secondary" onClick={handleOrganizerSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmOrganizerSelection}>Confirmar</Button></div>
       </Modal>
-
-      {isEventParticipantSelectorModalOpen && eventParticipantSelectionMode && (<Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
+      
+      <Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder="Buscar participante por nombre..." value={eventParticipantSearchTerm} onChange={(e) => setEventParticipantSearchTerm(e.target.value)} autoFocus />
-            {availableEventParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-event-participants-modal" ref={eventParticipantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredEventParticipants} className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /><label htmlFor="select-all-event-participants-modal" className="ml-2 text-sm">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}
-            <div ref={eventParticipantListRef} tabIndex={-1} onKeyDown={handleEventParticipantKeyDown} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
+            {availableEventParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-participants-modal" className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700" ref={eventParticipantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredEventParticipants} /><label htmlFor="select-all-participants-modal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}
+            <div ref={eventParticipantListRef} onKeyDown={handleEventParticipantKeyDown} tabIndex={-1} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
               {availableEventParticipantsForSelector.length > 0 ? (availableEventParticipantsForSelector.map((p, index) => {
                 const isHighlighted = index === highlightedEventParticipantIndex;
-                return(
-                <div key={p.id} onClick={() => !p.isDisabled && handleToggleEventParticipantSelection(p.id)} onMouseEnter={() => setHighlightedEventParticipantIndex(index)} className={`flex items-center p-1.5 rounded cursor-pointer ${isHighlighted ? 'bg-primary-100 dark:bg-primary-800' : ''} ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
-                  <input type="checkbox" id={`event-participant-select-${p.id}`} checked={tempSelectedEventParticipantIds.includes(p.id)} readOnly disabled={p.isDisabled} className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
-                  <label htmlFor={`event-participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled && <span className="text-xs italic">(seleccionado en otra modalidad)</span>}</label>
-                </div>
-              )})) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
+                return (
+                  <div key={p.id} onClick={() => !p.isDisabled && handleToggleEventParticipantSelection(p.id)} onMouseEnter={() => setHighlightedEventParticipantIndex(index)} className={`flex items-center p-1.5 rounded cursor-pointer ${isHighlighted ? 'bg-primary-100 dark:bg-primary-800' : ''} ${p.isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-600'}`}>
+                      <input type="checkbox" id={`participant-select-${p.id}`} checked={tempSelectedEventParticipantIds.includes(p.id)} readOnly disabled={p.isDisabled} className="h-4 w-4 text-primary-600 border-gray-300 rounded pointer-events-none" />
+                      <label htmlFor={`participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled ? <span className="text-xs italic">(seleccionado en otra modalidad)</span> : ''}</label>
+                  </div>
+                )
+              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleEventParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmEventParticipantSelection}>Confirmar Selección</Button></div>
-      </Modal>)}
-
-      <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
-        {eventToDelete && (
-          <div className="text-sm">
-            <p className="mb-4">
-              ¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?
-            </p>
-            <p className="mb-4">
-              Esta acción también eliminará todos sus registros de asistencia y enlaces de organizador asociados.
-            </p>
-            <p>Esta acción no se puede deshacer.</p>
-            <div className="flex justify-end mt-6 space-x-2">
-              <Button variant="secondary" onClick={() => setEventToDelete(null)}>
-                Cancelar
-              </Button>
-              <Button variant="danger" onClick={() => {
-                onDeleteEvent(eventToDelete.id);
-                if (isModalOpen && eventForViewOrEdit?.id === eventToDelete.id) {
-                    handleCloseModal();
-                }
-                setEventToDelete(null);
-              }}>
-                Sí, Eliminar
-              </Button>
-            </div>
-          </div>
-        )}
       </Modal>
 
       <Modal isOpen={isAddCatModalOpen} onClose={() => setIsAddCatModalOpen(false)} title={`Añadir Nueva ${addCatModalType === 'meeting_category' ? 'Categoría de Reunión' : 'Categoría de Evento'}`}>
-        <form onSubmit={handleAddNewCategory} id="add-new-category-form" className="space-y-4">
-          <Input
-            label="Nombre de la Categoría"
-            value={newCatName}
-            onChange={(e) => setNewCatName(e.target.value)}
-            required
-            autoFocus
-          />
+        <form onSubmit={handleAddNewCategory} id="add-category-form-events" className="space-y-4">
+          <Input label="Nombre de la Categoría" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required autoFocus />
         </form>
-        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button>
-          <Button variant="primary" type="submit" form="add-new-category-form">Guardar</Button>
-        </div>
+        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button><Button variant="primary" type="submit" form="add-category-form-events">Guardar</Button></div>
       </Modal>
 
+      <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
+        {eventToDelete && (<div className="text-sm"><p className="mb-4">¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?</p><p className="mb-4">Esta acción también eliminará todos sus registros de asistencia asociados.</p><p>Esta acción no se puede deshacer.</p><div className="flex justify-end mt-6 space-x-2"><Button variant="secondary" onClick={() => setEventToDelete(null)}>Cancelar</Button><Button variant="danger" onClick={() => {onDeleteEvent(eventToDelete.id); setEventToDelete(null); if (isModalOpen) handleCloseModal();}}>Sí, Eliminar</Button></div></div>)}
+      </Modal>
     </div>
   );
 };

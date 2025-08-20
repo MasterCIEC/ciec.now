@@ -55,6 +55,7 @@ const initialMeetingFormState: Omit<Meeting, 'id'> = {
   location: '',
   externalParticipantsCount: 0,
   description: '',
+  is_cancelled: false,
 };
 
 const TOTAL_STEPS_CREATE = 4;
@@ -124,6 +125,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
         location: initialMeetingToEdit.location || '',
         externalParticipantsCount: initialMeetingToEdit.externalParticipantsCount || 0,
         description: initialMeetingToEdit.description || '',
+        is_cancelled: initialMeetingToEdit.is_cancelled,
       });
       const currentAttendees = meetingAttendees.filter(ma => ma.meeting_id === initialMeetingToEdit.id);
       setSelectedAttendeesInPerson(currentAttendees.filter(ma => ma.attendance_type === 'in_person').map(ma => ma.participant_id));
@@ -142,6 +144,7 @@ const ScheduleMeetingView: React.FC<ScheduleMeetingViewProps> = ({
             location: meetingForViewOrEdit.location || '',
             externalParticipantsCount: meetingForViewOrEdit.externalParticipantsCount || 0,
             description: meetingForViewOrEdit.description || '',
+            is_cancelled: meetingForViewOrEdit.is_cancelled,
         });
         const currentAttendees = meetingAttendees.filter(ma => ma.meeting_id === meetingForViewOrEdit.id);
         setSelectedAttendeesInPerson(currentAttendees.filter(ma => ma.attendance_type === 'in_person').map(ma => ma.participant_id));

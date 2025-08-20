@@ -77,18 +77,19 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
       Users: 'Usuarios',
       Commission: 'Comisiones',
       EventCategory: 'Categorías de Eventos',
+      Event: 'Eventos',
     },
     actions: {
-      Create: 'Insertar',
-      Read: 'Leer',
-      Update: 'Actualizar',
-      Delete: 'Borrar',
-      Manage: 'Gestionar',
+      create: 'Insertar',
+      read: 'Leer',
+      update: 'Actualizar',
+      delete: 'Borrar',
+      manage: 'Gestionar',
     },
   };
 
   const translate = (type: 'subjects' | 'actions', text: string): string => {
-    return translations[type][text] || text;
+    return (translations[type] as any)[text] || text;
   };
 
   useEffect(() => {
@@ -98,7 +99,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
         try {
           const { data: permissionsData, error: permissionsError } = await supabase.from('permissions').select('*');
           if (permissionsError) throw permissionsError;
-          setAllPermissions((permissionsData as any) || []);
+          setAllPermissions(permissionsData || []);
 
           const { data: rolePermsData, error: rolePermsError } = await supabase.from('rolepermissions').select('role_id, permission_id');
           if (rolePermsError) throw rolePermsError;
@@ -224,11 +225,15 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
       if (roleFormMode === 'create') {
         const { data, error } = await supabase.from('roles').insert([{ name: roleNameInput.trim() }]).select().single();
         if (error) throw error;
-        setSaveResultModalInfo({ title: "Éxito", message: "Rol creado con éxito.", success: true });
-        onRolesUpdated();
-        const newRole = data as Role;
-        setRoles(prev => [...prev, newRole]);
-        setSelectedRole(newRole);
+        if (data) {
+          setSaveResultModalInfo({ title: "Éxito", message: "Rol creado con éxito.", success: true });
+          onRolesUpdated();
+          const newRole = data as Role;
+          setRoles(prev => [...prev, newRole]);
+          setSelectedRole(newRole);
+        } else {
+          throw new Error("Failed to create role: no data returned.");
+        }
       } else if (roleFormMode === 'edit' && roleToManage) {
         const { error } = await supabase.from('roles').update({ name: roleNameInput.trim() }).eq('id', roleToManage.id);
         if (error) throw error;

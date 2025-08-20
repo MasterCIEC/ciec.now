@@ -355,10 +355,11 @@ CIEC.Now`
           {itemsOnDay.length > 0 && (
             <div className="mt-0.5 space-y-0.5 w-full">
               {itemsOnDay.slice(0, maxVisibleItems).map(item => {
+                const isCancelled = (item.type === 'event' && item.originalEvent.is_cancelled) || (item.type === 'meeting' && item.originalMeeting.is_cancelled);
                 const bgColor = item.type === 'meeting' ? 'bg-primary-500 dark:bg-primary-600' : 'bg-green-500 dark:bg-green-600';
                 const organizerName = item.type === 'meeting' ? getMeetingCategoryName(item.meetingCategoryId) : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
                 const title = `${item.subject} (${organizerName}) a las ${formatTo12Hour(item.startTime)}`;
-                 return (<div key={item.id} className={`text-xxs sm:text-xs p-0.5 rounded ${bgColor} text-white truncate`} title={title}><p className="font-semibold truncate leading-tight">{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p><p className="text-xxs truncate leading-tight">{formatTo12Hour(item.startTime)}</p></div>)
+                 return (<div key={item.id} className={`text-xxs sm:text-xs p-0.5 rounded ${bgColor} text-white truncate ${isCancelled ? 'opacity-60' : ''}`} title={title}><p className={`font-semibold truncate leading-tight ${isCancelled ? 'line-through' : ''}`}>{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p><p className="text-xxs truncate leading-tight">{formatTo12Hour(item.startTime)}</p></div>)
               })}
               {itemsOnDay.length > maxVisibleItems && (<span className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-0.5 block">+{itemsOnDay.length - maxVisibleItems} más</span>)}
             </div>
@@ -420,12 +421,13 @@ CIEC.Now`
                 </div>
                 <div className="space-y-1">
                     {itemsOnDay.slice(0, maxVisibleItems).map(item => {
+                        const isCancelled = (item.type === 'event' && item.originalEvent.is_cancelled) || (item.type === 'meeting' && item.originalMeeting.is_cancelled);
                         const bgColor = item.type === 'meeting' ? 'bg-primary-500 dark:bg-primary-600' : 'bg-green-500 dark:bg-green-600';
                         const organizerName = item.type === 'meeting' ? getMeetingCategoryName(item.meetingCategoryId) : getDisplayOrganizerNameForEvent(item as EventAgendaItem);
                         const title = `${item.subject} (${organizerName}) a las ${formatTo12Hour(item.startTime)}`;
                         return (
-                            <div key={item.id} className={`text-xs p-1 rounded ${bgColor} text-white truncate cursor-pointer hover:opacity-80`} title={title} onClick={() => handleOpenDayDetailsModal(dayDate)}>
-                                <p className="font-semibold truncate leading-tight">{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p>
+                            <div key={item.id} className={`text-xs p-1 rounded ${bgColor} text-white truncate cursor-pointer hover:opacity-80 ${isCancelled ? 'opacity-60' : ''}`} title={title} onClick={() => handleOpenDayDetailsModal(dayDate)}>
+                                <p className={`font-semibold truncate leading-tight ${isCancelled ? 'line-through' : ''}`}>{item.type === 'meeting' ? 'R:' : 'E:'} {organizerName}</p>
                                 <p className="text-xxs truncate leading-tight">{formatTo12Hour(item.startTime)}: {item.subject}</p>
                             </div>
                         );
@@ -454,6 +456,7 @@ CIEC.Now`
     return (
         <div className="space-y-4 p-1 md:p-4 max-h-[70vh] overflow-y-auto">
             {itemsOnDay.map(item => {
+                const isCancelled = (item.type === 'event' && item.originalEvent.is_cancelled) || (item.type === 'meeting' && item.originalMeeting.is_cancelled);
                 const ItemIcon = item.type === 'meeting' ? ScheduleIcon : EventsIcon;
                 const itemTypeLabel = item.type === 'meeting' ? 'Reunión' : 'Evento';
                 const titleColor = item.type === 'meeting' ? 'text-primary-700 dark:text-primary-400' : 'text-green-700 dark:text-green-400';
@@ -472,8 +475,12 @@ CIEC.Now`
                 const editHandler = () => { if (item.type === 'meeting') onEditMeeting(item.originalMeeting); else onEditEvent(item.originalEvent); };
 
                 return (
-                <Card key={item.id} className="bg-white dark:bg-gray-700/80 hover:shadow-lg transition-shadow p-4">
-                    <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
+                <Card key={item.id} className={`bg-white dark:bg-gray-700/80 hover:shadow-lg transition-shadow p-4 ${isCancelled ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center mb-2">
+                        <ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} />
+                        <h3 className={`text-lg font-semibold ${titleColor} ${isCancelled ? 'line-through' : ''}`}>{`${item.subject} (${itemTypeLabel})`}</h3>
+                        {isCancelled && <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">CANCELADO</span>}
+                    </div>
                     <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}` : '(Hora de fin no definida)'}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                     {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
@@ -499,7 +506,7 @@ CIEC.Now`
                       </div>
                     )}
                     <div className="mt-3 flex justify-end gap-2">
-                        {(item.type === 'meeting' || item.type === 'event') && (
+                        {(item.type === 'meeting' || (item.type === 'event' && !isCancelled)) && (
                             <Button onClick={() => handleSendInvitation(item)} variant="info" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
                                 <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                             </Button>
@@ -540,6 +547,7 @@ CIEC.Now`
                 meetingCategoryId: formData.organizerId,
                 date: formData.date,
                 startTime: formData.startTime,
+                is_cancelled: false,
             };
             onQuickAddMeeting(newMeeting);
         } else { // event
@@ -548,6 +556,7 @@ CIEC.Now`
                 organizerType: formData.organizerType as 'meeting_category' | 'category',
                 date: formData.date,
                 startTime: formData.startTime,
+                is_cancelled: false,
             };
             onQuickAddEvent(newEvent, formData.organizerId);
         }
@@ -699,6 +708,7 @@ CIEC.Now`
           {selectedDayDetailsForModal.items.length === 0 ? ( <p className="text-center text-gray-500 dark:text-gray-400">No hay reuniones ni eventos programados para este día.</p> ) : (
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               {selectedDayDetailsForModal.items.map(item => {
+                const isCancelled = (item.type === 'event' && item.originalEvent.is_cancelled) || (item.type === 'meeting' && item.originalMeeting.is_cancelled);
                 const ItemIcon = item.type === 'meeting' ? ScheduleIcon : EventsIcon;
                 const itemTypeLabel = item.type === 'meeting' ? 'Reunión' : 'Evento';
                 const titleColor = item.type === 'meeting' ? 'text-primary-700 dark:text-primary-400' : 'text-green-700 dark:text-green-400';
@@ -717,8 +727,12 @@ CIEC.Now`
                 const editHandler = () => { if (item.type === 'meeting') onEditMeeting(item.originalMeeting); else onEditEvent(item.originalEvent); setIsDayModalOpen(false); };
 
                 return (
-                <Card key={item.id} className="bg-gray-50 dark:bg-gray-700 hover:shadow-lg transition-shadow p-4">
-                  <div className="flex items-center mb-2"><ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} /><h3 className={`text-lg font-semibold ${titleColor}`}>{`${item.subject} (${itemTypeLabel})`}</h3></div>
+                <Card key={item.id} className={`bg-gray-50 dark:bg-gray-700 hover:shadow-lg transition-shadow p-4 ${isCancelled ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center mb-2">
+                    <ItemIcon className={`w-5 h-5 mr-2 ${item.type === 'meeting' ? 'text-primary-500' : 'text-green-500'}`} />
+                    <h3 className={`text-lg font-semibold ${titleColor} ${isCancelled ? 'line-through' : ''}`}>{`${item.subject} (${itemTypeLabel})`}</h3>
+                    {isCancelled && <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">CANCELADO</span>}
+                  </div>
                   <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}`: '(Hora de fin no definida)'}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                   {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
@@ -744,7 +758,7 @@ CIEC.Now`
                     </div>
                   )}
                   <div className="mt-3 flex justify-end gap-2">
-                    {(item.type === 'meeting' || item.type === 'event') && (
+                    {(!isCancelled) && (
                         <Button onClick={() => handleSendInvitation(item)} variant="info" size="sm" aria-label={`Invitar a ${itemTypeLabel.toLowerCase()}: ${item.subject}`}>
                             <EmailIcon className="w-4 h-4 mr-1"/> Invitar
                         </Button>

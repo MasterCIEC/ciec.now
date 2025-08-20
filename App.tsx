@@ -93,13 +93,13 @@ const AppContent = (): JSX.Element => {
     if (!affiliations || affiliations.length === 0) {
       setCompanies([]); return;
     }
-    const affiliatedIds = affiliations.map(a => a.id_establecimiento);
+    const affiliatedIds = (affiliations as any[]).map(a => a.id_establecimiento);
     const { data: companiesData, error: companiesError } = await supabase
       .from('establecimientos_completos_remotos')
       .select('id_establecimiento, nombre_establecimiento, rif_compania, email_principal, telefono_principal_1, nombre_municipio')
       .in('id_establecimiento', affiliatedIds);
     if (companiesError) console.error('Error al obtener empresas afiliadas:', companiesError.message);
-    else setCompanies((companiesData as any) || []);
+    else setCompanies(companiesData || []);
   }, []);
 
   const fetchParticipants = useCallback(async () => {
@@ -139,8 +139,8 @@ const AppContent = (): JSX.Element => {
     const processedEvents = (rawEventsData as any[]).map(dbEvent => {
       const baseEvent = eventFromSupabase(dbEvent);
       let determinedOrganizerType: 'meeting_category' | 'category' = 'meeting_category';
-      if (eocData?.some(link => link.event_id === baseEvent.id)) determinedOrganizerType = 'meeting_category';
-      else if (eocaData?.some(link => link.event_id === baseEvent.id)) determinedOrganizerType = 'category';
+      if ((eocData as any)?.some((link: any) => link.event_id === baseEvent.id)) determinedOrganizerType = 'meeting_category';
+      else if ((eocaData as any)?.some((link: any) => link.event_id === baseEvent.id)) determinedOrganizerType = 'category';
       else console.warn(`Event ${baseEvent.id} ('${baseEvent.subject}') has no organizer links. Defaulting to 'meeting_category'.`);
       return { ...baseEvent, organizerType: determinedOrganizerType } as Event;
     });
@@ -152,7 +152,7 @@ const AppContent = (): JSX.Element => {
     const { data, error } = await supabase.from('participant_commissions').select('participant_id, commission_id');
     if (error) console.error('Error fetching participant_commissions:', error.message);
     else {
-      const mappedData = data ? data.map(item => ({ participant_id: item.participant_id, meeting_category_id: item.commission_id })) : [];
+      const mappedData = data ? (data as any[]).map(item => ({ participant_id: item.participant_id, meeting_category_id: item.commission_id })) : [];
       setParticipantMeetingCategories(mappedData);
     }
   }, []);
@@ -176,7 +176,7 @@ const AppContent = (): JSX.Element => {
     const { data, error } = await supabase.from('event_organizing_commissions').select('event_id, commission_id');
     if (error) console.error('Error fetching event_organizing_commissions:', error.message);
     else {
-      const mappedData = data ? data.map(item => ({ event_id: item.event_id, meeting_category_id: item.commission_id })) : [];
+      const mappedData = data ? (data as any[]).map(item => ({ event_id: item.event_id, meeting_category_id: item.commission_id })) : [];
       setEventOrganizingMeetingCategories(mappedData);
     }
   }, []);

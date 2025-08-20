@@ -63,13 +63,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile(null);
           setPermissions(new Set());
         } else {
-          setProfile(userProfileData as UserProfile | null);
+          setProfile(userProfileData as any as UserProfile | null);
           // Si el perfil se carga correctamente, obtener los permisos
-          if (userProfileData?.roles?.id) {
+          if ((userProfileData as any)?.roles?.id) {
             const { data: rolePermissionsData, error: permissionsError } = await supabase
               .from('rolepermissions')
               .select('permissions(action, subject)')
-              .eq('role_id', userProfileData.roles.id);
+              .eq('role_id', (userProfileData as any).roles.id);
 
             if (permissionsError) {
               console.error("Error fetching permissions:", permissionsError);

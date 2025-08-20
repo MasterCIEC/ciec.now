@@ -56,6 +56,7 @@ export interface Meeting {
   location?: string | null;
   externalParticipantsCount?: number;
   description?: string | null;
+  is_cancelled: boolean;
 }
 
 export interface EventCategory {
@@ -76,7 +77,8 @@ export interface Event {
   cost?: number;
   investment?: number;
   revenue?: number;
-  is_cancelled?: boolean;
+  is_cancelled: boolean;
+  flyer_url?: string;
 }
 
 export interface ParticipantMeetingCategory {
