@@ -300,13 +300,11 @@ const ReportsView: React.FC<ReportsViewProps> = ({
 
     const formatDateForHeader = (dateStr: string) => new Date(dateStr + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    // Chunk activities for pagination
     const pages = [];
-    const activitiesPerPage = 5; // Adjust this based on average item height
+    const activitiesPerPage = 4;
 
-    // Page 1: Summary
     pages.push(
-      <div key="page-summary" className="report-page mx-auto mb-4 w-[210mm] h-[297mm] bg-white text-black p-8 border border-gray-300 flex flex-col">
+      <div key="page-summary" className="report-page mx-auto mb-4 w-[1080px] h-[1920px] bg-white text-black p-8 flex flex-col font-sans">
         <header className="flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-6">
           <div>
               <h1 className="text-3xl font-bold text-gray-800">Reporte de Actividades</h1>
@@ -316,7 +314,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({
         </header>
         <section className="mb-8">
             <h2 className="text-xl font-semibold border-b border-gray-400 pb-2 mb-4">Resumen General</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4">
                 <div className="flex flex-col items-center justify-center p-4 bg-sky-100 rounded-xl shadow-md space-y-2 text-sky-800">
                     <span className="text-4xl" role="img" aria-label="Reuniones">🤝</span>
                     <p className="text-4xl font-extrabold">{reportData.summary.totalMeetings}</p>
@@ -342,54 +340,91 @@ const ReportsView: React.FC<ReportsViewProps> = ({
         <footer className="text-center text-xs text-gray-500 pt-8 mt-auto border-t">Página 1</footer>
       </div>
     );
-    
-    // Subsequent pages: Activities
-    const activityChunks = [];
-    for (let i = 0; i < reportData.activities.length; i += activitiesPerPage) {
-        activityChunks.push(reportData.activities.slice(i, i + activitiesPerPage));
-    }
 
-    activityChunks.forEach((chunk, index) => {
-        pages.push(
-            <div key={`page-activities-${index}`} className="report-page mx-auto mb-4 w-[210mm] h-[297mm] bg-white text-black p-8 border border-gray-300 flex flex-col">
-                <header className="flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-6">
-                    <h1 className="text-3xl font-bold text-gray-800">Detalle de Actividades</h1>
-                    <AppLogo className="w-40 h-20" variant="light" />
-                </header>
-                <section className="flex-grow">
-                    <div className="space-y-4">
-                        {chunk.map(item => (
-                            <div key={item.id} className={`border rounded-lg p-3 break-inside-avoid ${item.type === 'meeting' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
-                                <h3 className={`text-lg font-bold ${item.type === 'meeting' ? 'text-blue-800' : 'text-green-800'}`}>{item.subject}</h3>
-                                <p className="text-sm font-semibold text-gray-600">{formatFullDate(item.date)} | {formatTimeRange(item.startTime, item.endTime)}</p>
-                                <div className="mt-2 text-sm text-gray-700">
-                                    <div className="grid grid-cols-2 gap-x-4">
-                                        <div className="space-y-1">
-                                            <p><strong className="font-semibold text-gray-800">Categoría:</strong> {getDisplayOrganizerName(item)}</p>
-                                            <p><strong className="font-semibold text-gray-800">Duración:</strong> {formatDuration(item.durationMinutes)}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p><strong className="font-semibold text-gray-800">Ubicación:</strong> {item.location || 'N/A'}</p>
-                                            <div>
-                                                <p><strong className="font-semibold text-gray-800">Part. ({item.totalParticipants}):</strong></p>
-                                                <div className="pl-2 text-xs">
-                                                    {item.inPersonCount > 0 && <p>Presenciales: {item.inPersonCount}</p>}
-                                                    {item.onlineCount > 0 && <p>Online: {item.onlineCount}</p>}
-                                                    {item.externalCount > 0 && <p>Externos: {item.externalCount}</p>}
-                                                </div>
-                                            </div>
+    const meetingsInReport = reportData.activities.filter(a => a.type === 'meeting');
+    const eventsInReport = reportData.activities.filter(a => a.type === 'event');
+    
+    let pageCounter = 2;
+
+    if (meetingsInReport.length > 0) {
+        const meetingChunks = [];
+        for (let i = 0; i < meetingsInReport.length; i += activitiesPerPage) {
+            meetingChunks.push(meetingsInReport.slice(i, i + activitiesPerPage));
+        }
+
+        meetingChunks.forEach((chunk, index) => {
+            pages.push(
+                <div key={`page-meetings-${index}`} className="report-page mx-auto mb-4 w-[1080px] h-[1920px] bg-white text-black p-8 flex flex-col font-sans">
+                    <header className="flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-6">
+                      <h1 className="text-3xl font-bold text-gray-800">Detalle de Actividades</h1>
+                      <AppLogo className="w-40 h-20" variant="light" />
+                    </header>
+                    <section className="flex-grow">
+                        {index === 0 && (
+                            <h2 className="text-2xl font-bold text-gray-800 border-b-2 border-green-700 pb-2 mb-6">Reuniones</h2>
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                            {chunk.map(item => (
+                                <div key={item.id} className="rounded-lg p-0.5 shadow-lg border-2 border-dashed border-green-400">
+                                    <div className="bg-green-800 text-white rounded-md p-5 w-full h-full flex flex-col">
+                                        <h3 className="text-xl font-semibold mb-3 pb-2 border-b border-green-600">{item.subject}</h3>
+                                        <p className="text-sm"><strong className="font-medium">Fecha:</strong> {formatFullDate(item.date)}</p>
+                                        <p className="text-sm"><strong className="font-medium">Hora:</strong> {formatTimeRange(item.startTime, item.endTime)}</p>
+                                        <p className="text-sm"><strong className="font-medium">Ubicación:</strong> {item.location || 'N/A'}</p>
+                                        <p className="text-sm"><strong className="font-medium">Duración:</strong> {formatDuration(item.durationMinutes)}</p>
+                                        <div className="mt-auto pt-4 text-right text-xs italic opacity-80">
+                                            <p>Categoría: {getDisplayOrganizerName(item)}</p>
                                         </div>
                                     </div>
                                 </div>
-                                {item.participantNames.length > 0 && <p className="text-xs mt-2 text-gray-600"><strong className="font-semibold text-gray-700">Asistentes:</strong> {item.participantNames.join(', ')}</p>}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-                <footer className="text-center text-xs text-gray-500 pt-8 mt-auto border-t">Página {index + 2}</footer>
-            </div>
-        );
-    });
+                            ))}
+                        </div>
+                    </section>
+                    <footer className="text-center text-xs text-gray-500 pt-8 mt-auto border-t">Página {pageCounter++}</footer>
+                </div>
+            );
+        });
+    }
+
+    if (eventsInReport.length > 0) {
+        const eventChunks = [];
+        for (let i = 0; i < eventsInReport.length; i += activitiesPerPage) {
+            eventChunks.push(eventsInReport.slice(i, i + activitiesPerPage));
+        }
+
+        eventChunks.forEach((chunk, index) => {
+            pages.push(
+                <div key={`page-events-${index}`} className="report-page mx-auto mb-4 w-[1080px] h-[1920px] bg-white text-black p-8 flex flex-col font-sans">
+                    <header className="flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-6">
+                        <h1 className="text-3xl font-bold text-gray-800">Detalle de Actividades</h1>
+                        <AppLogo className="w-40 h-20" variant="light" />
+                    </header>
+                    <section className="flex-grow">
+                        {index === 0 && (
+                             <h2 className="text-2xl font-bold text-gray-800 border-b-2 border-blue-700 pb-2 mb-6">Eventos</h2>
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                            {chunk.map(item => (
+                               <div key={item.id} className="rounded-lg p-0.5 shadow-lg border-2 border-dashed border-blue-400">
+                                    <div className="bg-blue-800 text-white rounded-md p-5 w-full h-full flex flex-col">
+                                        <h3 className="text-xl font-semibold mb-3 pb-2 border-b border-blue-600">{item.subject}</h3>
+                                        <p className="text-sm"><strong className="font-medium">Fecha:</strong> {formatFullDate(item.date)}</p>
+                                        <p className="text-sm"><strong className="font-medium">Hora:</strong> {formatTimeRange(item.startTime, item.endTime)}</p>
+                                        <p className="text-sm"><strong className="font-medium">Ubicación:</strong> {item.location || 'N/A'}</p>
+                                        <p className="text-sm"><strong className="font-medium">Participantes:</strong> {item.totalParticipants}</p>
+                                        <div className="mt-auto pt-4 text-right text-xs italic opacity-80">
+                                            <p>Categoría: {getDisplayOrganizerName(item)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                    <footer className="text-center text-xs text-gray-500 pt-8 mt-auto border-t">Página {pageCounter++}</footer>
+                </div>
+            );
+        });
+    }
 
     return (
         <Card className="mt-6">
@@ -404,7 +439,6 @@ const ReportsView: React.FC<ReportsViewProps> = ({
                 </Button>
             </CardHeader>
             <CardContent className="bg-gray-200 dark:bg-slate-900 p-4 sm:p-8">
-                {/* This outer div is just for on-screen scrolling, it's not part of the PDF itself */}
                 <div id="report-preview-container" className="max-h-[80vh] overflow-y-auto">
                     {pages}
                 </div>

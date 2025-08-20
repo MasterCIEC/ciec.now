@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode, useRef, useCallback } from 'react';
 import { AuthSession, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
-import { UserProfile, Permission } from '../types';
+import { UserProfile } from '../types';
 
 type AuthContextType = {
   session: AuthSession | null;
@@ -24,115 +24,121 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInactivityModal, setShowInactivityModal] = useState(false);
   const [awaitingPasswordReset, setAwaitingPasswordReset] = useState(false);
   const inactivityTimer = useRef<number | null>(null);
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
 
-  const can = useCallback((action: string, subject: string): boolean => {
-    if (profile?.roles?.name === 'SuperAdmin') return true;
-    return permissions.some(p => 
-      (p.subject === subject && (p.action === action || p.action === 'manage'))
-    );
-  }, [permissions, profile]);
-
-
-  useEffect(() => {
+  // --- CORRECCIÓN APLICADA AQUÍ ---
+  // Se centraliza toda la lógica de obtención de datos del usuario en una única función robusta.
+  const refreshSessionData = useCallback(async () => {
     setLoading(true);
-
-    const fetchProfileAndPermissions = async (user: User | null) => {
-      if (!user) {
+    try {
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error("Error fetching session:", sessionError);
+        // Limpiar todo si hay un error de sesión
+        setSession(null);
+        setUser(null);
         setProfile(null);
-        setPermissions([]);
+        setPermissions(new Set());
         return;
       }
 
-      const { data: userProfileData, error: profileError } = await supabase
-        .from('userprofiles')
-        .select(`*, roles (id, name)`)
-        .eq('id', user.id)
-        .single();
-      
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error fetching profile:", profileError);
-        setProfile(null);
-        setPermissions([]);
-        return;
-      }
-      
-      const currentProfile = (userProfileData as any) as UserProfile | null;
-      setProfile(currentProfile);
+      setSession(currentSession);
+      const currentUser = currentSession?.user ?? null;
+      setUser(currentUser);
 
-      if (currentProfile && currentProfile.role_id) {
-        const { data: rolePermsData, error: rolePermsError } = await supabase
-          .from('rolepermissions')
-          .select('permission_id')
-          .eq('role_id', currentProfile.role_id);
-        
-        if (rolePermsError) {
-          console.error("Error fetching role permissions:", rolePermsError);
-          setPermissions([]);
-          return;
-        }
+      if (currentUser) {
+        // Si hay un usuario, obtener su perfil y permisos
+        const { data: userProfileData, error: profileError } = await supabase
+          .from('userprofiles')
+          .select(`*, roles (id, name)`)
+          .eq('id', currentUser.id)
+          .single();
 
-        const permissionIds = rolePermsData.map(p => p.permission_id);
-        if (permissionIds.length > 0) {
-          const { data: permissionsData, error: permsError } = await supabase
-            .from('permissions')
-            .select('action, subject')
-            .in('id', permissionIds);
-          
-          if (permsError) {
-            console.error("Error fetching permissions:", permsError);
-            setPermissions([]);
-          } else {
-            setPermissions((permissionsData as any) || []);
-          }
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error("Error fetching profile:", profileError);
+          setProfile(null);
+          setPermissions(new Set());
         } else {
-          setPermissions([]);
+          setProfile(userProfileData as UserProfile | null);
+          // Si el perfil se carga correctamente, obtener los permisos
+          if (userProfileData?.roles?.id) {
+            const { data: rolePermissionsData, error: permissionsError } = await supabase
+              .from('rolepermissions')
+              .select('permissions(action, subject)')
+              .eq('role_id', userProfileData.roles.id);
+
+            if (permissionsError) {
+              console.error("Error fetching permissions:", permissionsError);
+              setPermissions(new Set());
+            } else {
+              const userPermissions = new Set<string>(
+                (rolePermissionsData as any[])
+                  .filter(p => p.permissions)
+                  .map(p => `${p.permissions.action}:${p.permissions.subject}`)
+              );
+              setPermissions(userPermissions);
+            }
+          } else {
+            setPermissions(new Set());
+          }
         }
       } else {
-        setPermissions([]);
+        // Si no hay usuario, limpiar el perfil y los permisos
+        setProfile(null);
+        setPermissions(new Set());
       }
-    };
-    
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      await fetchProfileAndPermissions(session?.user ?? null);
+    } catch (error) {
+      console.error("A critical error occurred during session refresh:", error);
+      // Limpiar todo en caso de un error inesperado
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setPermissions(new Set());
+    } finally {
       setLoading(false);
-    });
+    }
+  }, []);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setLoading(true);
-      setSession(session);
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (_event === 'PASSWORD_RECOVERY') {
-        setAwaitingPasswordReset(true);
-      } else if (_event !== 'USER_UPDATED') {
-        setAwaitingPasswordReset(false);
+  useEffect(() => {
+    // Carga inicial de la sesión al montar el componente
+    refreshSessionData();
+
+    // El listener de Supabase ahora solo necesita invocar nuestra función centralizada
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Solo refrescamos si el evento indica un cambio real de sesión (login/logout)
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT' || _event === 'TOKEN_REFRESHED') {
+        refreshSessionData();
       }
-
-      await fetchProfileAndPermissions(currentUser);
-      setLoading(false);
     });
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [refreshSessionData]);
+  
+  // --- CORRECCIÓN APLICADA AQUÍ ---
+  // Este efecto ahora usa la función centralizada para una recuperación más fiable.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Cuando la pestaña vuelve a estar visible, forzamos un refresco completo de los datos.
+        refreshSessionData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshSessionData]);
 
   const signOut = useCallback(async (options?: { dueToInactivity?: boolean }) => {
-    if (inactivityTimer.current) {
-        clearTimeout(inactivityTimer.current);
-    }
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     await supabase.auth.signOut();
-    if (options?.dueToInactivity) {
-        setShowInactivityModal(true);
-    }
+    if (options?.dueToInactivity) setShowInactivityModal(true);
   }, []);
 
   const handleInactivity = useCallback(() => {
@@ -140,33 +146,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [signOut]);
 
   const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) {
-        clearTimeout(inactivityTimer.current);
-    }
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     inactivityTimer.current = window.setTimeout(handleInactivity, INACTIVITY_TIMEOUT);
   }, [handleInactivity]);
 
   useEffect(() => {
     if (session) {
         const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-        
         events.forEach(event => window.addEventListener(event, resetInactivityTimer, { passive: true }));
         resetInactivityTimer();
-
         return () => {
             events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
-            if (inactivityTimer.current) {
-                clearTimeout(inactivityTimer.current);
-            }
+            if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
         };
     } else {
-        if (inactivityTimer.current) {
-            clearTimeout(inactivityTimer.current);
-        }
+        if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     }
   }, [session, resetInactivityTimer]);
 
   const closeInactivityModal = () => setShowInactivityModal(false);
+
+  const can = useCallback((action: string, subject: string): boolean => {
+    if (profile?.roles?.name === 'SuperAdmin') {
+      return true;
+    }
+    return permissions.has(`${action}:${subject}`);
+  }, [profile, permissions]);
 
   const value = {
     session,
