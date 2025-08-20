@@ -16,13 +16,27 @@ export type Database = {
         Row: { id: string; name: string; id_establecimiento: string | null; role: string | null; email: string | null; phone: string | null };
         Insert: { id?: string; name: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
         Update: { name?: string; id_establecimiento?: string | null; role?: string | null; email?: string | null; phone?: string | null };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "participants_id_establecimiento_fkey",
+            columns: ["id_establecimiento"],
+            referencedRelation: "establecimientos_completos_remotos",
+            referencedColumns: ["id_establecimiento"]
+          }
+        ];
       },
       Meetings: {
         Row: { id: string; subject: string; commission_id: string; date: string; start_time: string | null; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null; is_cancelled: boolean };
         Insert: { id?: string; subject: string; commission_id: string; date: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; is_cancelled?: boolean };
         Update: { subject?: string; commission_id?: string; date?: string; start_time?: string | null; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; is_cancelled?: boolean };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "meetings_commission_id_fkey",
+            columns: ["commission_id"],
+            referencedRelation: "Commissions",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       EventCategories: {
         Row: { id: string; name: string };
@@ -31,40 +45,105 @@ export type Database = {
         Relationships: [];
       },
       Events: {
-        Row: { id: string; subject: string; date: string; start_time: string; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null; cost: number | null; investment: number | null; revenue: number | null; is_cancelled: boolean };
-        Insert: { id?: string; subject: string; date: string; start_time: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean };
-        Update: { subject?: string; date?: string; start_time?: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean };
+        Row: { id: string; subject: string; date: string; start_time: string; end_time: string | null; location: string | null; external_participants_count: number | null; description: string | null; cost: number | null; investment: number | null; revenue: number | null; is_cancelled: boolean; flyer_url: string | null };
+        Insert: { id?: string; subject: string; date: string; start_time: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean; flyer_url?: string | null };
+        Update: { subject?: string; date?: string; start_time?: string; end_time?: string | null; location?: string | null; external_participants_count?: number | null; description?: string | null; cost?: number | null; investment?: number | null; revenue?: number | null; is_cancelled?: boolean; flyer_url?: string | null };
         Relationships: [];
       },
       participant_commissions: {
         Row: { participant_id: string; commission_id: string };
         Insert: { participant_id: string; commission_id: string };
         Update: { participant_id?: string; commission_id?: string };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "participant_commissions_participant_id_fkey",
+            columns: ["participant_id"],
+            referencedRelation: "Participants",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "participant_commissions_commission_id_fkey",
+            columns: ["commission_id"],
+            referencedRelation: "Commissions",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       meeting_attendees: {
         Row: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { meeting_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey",
+            columns: ["meeting_id"],
+            referencedRelation: "Meetings",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_participant_id_fkey",
+            columns: ["participant_id"],
+            referencedRelation: "Participants",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       event_attendees: {
         Row: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { event_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "event_attendees_event_id_fkey",
+            columns: ["event_id"],
+            referencedRelation: "Events",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendees_participant_id_fkey",
+            columns: ["participant_id"],
+            referencedRelation: "Participants",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       event_organizing_commissions: {
         Row: { event_id: string; commission_id: string };
         Insert: { event_id: string; commission_id: string };
         Update: { event_id?: string; commission_id?: string };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "event_organizing_commissions_event_id_fkey",
+            columns: ["event_id"],
+            referencedRelation: "Events",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizing_commissions_commission_id_fkey",
+            columns: ["commission_id"],
+            referencedRelation: "Commissions",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       event_organizing_categories: {
         Row: { event_id: string; category_id: string };
         Insert: { event_id: string; category_id: string };
         Update: { event_id?: string; category_id?: string };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "event_organizing_categories_event_id_fkey",
+            columns: ["event_id"],
+            referencedRelation: "Events",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizing_categories_category_id_fkey",
+            columns: ["category_id"],
+            referencedRelation: "EventCategories",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       roles: {
         Row: { id: number; name: string };
@@ -76,7 +155,14 @@ export type Database = {
         Row: { id: string; full_name: string | null; role_id: number | null; is_approved: boolean };
         Insert: { id: string; full_name?: string | null; role_id?: number | null; is_approved?: boolean };
         Update: { full_name?: string | null; role_id?: number | null; is_approved?: boolean };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "userprofiles_role_id_fkey",
+            columns: ["role_id"],
+            referencedRelation: "roles",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       permissions: {
         Row: { id: number; action: string; subject: string };
@@ -88,7 +174,20 @@ export type Database = {
         Row: { role_id: number; permission_id: number };
         Insert: { role_id: number; permission_id: number };
         Update: { role_id?: number; permission_id?: number };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "rolepermissions_role_id_fkey",
+            columns: ["role_id"],
+            referencedRelation: "roles",
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolepermissions_permission_id_fkey",
+            columns: ["permission_id"],
+            referencedRelation: "permissions",
+            referencedColumns: ["id"]
+          }
+        ];
       },
       afiliaciones_remotos: {
         Row: {
@@ -103,7 +202,14 @@ export type Database = {
           id_establecimiento?: string;
           rif_institucion?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "afiliaciones_remotos_id_establecimiento_fkey",
+            columns: ["id_establecimiento"],
+            referencedRelation: "establecimientos_completos_remotos",
+            referencedColumns: ["id_establecimiento"]
+          }
+        ];
       },
       establecimientos_completos_remotos: {
         Row: {
@@ -175,15 +281,15 @@ export const meetingFromSupabase = (dbMeeting: any): Meeting => ({ id: dbMeeting
 export const eventToSupabase = (event: Omit<Event, 'id'> & { id?: string }): Database['public']['Tables']['Events']['Insert'] => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { organizerType, ...restOfEventData } = event;
-    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled ?? false };
+    const data: Database['public']['Tables']['Events']['Insert'] = { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled ?? false, flyer_url: restOfEventData.flyer_url || null };
     if (restOfEventData.id) { data.id = restOfEventData.id; }
     return data;
 };
 export const eventToSupabaseForUpdate = (event: Omit<Event, 'id'>): Database['public']['Tables']['Events']['Update'] => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { organizerType, ...restOfEventData } = event;
-    return { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled };
+    return { subject: restOfEventData.subject, date: restOfEventData.date, start_time: restOfEventData.startTime, end_time: restOfEventData.endTime || null, location: restOfEventData.location || null, external_participants_count: restOfEventData.externalParticipantsCount ?? null, description: restOfEventData.description || null, cost: restOfEventData.cost ?? null, investment: restOfEventData.investment ?? null, revenue: restOfEventData.revenue ?? null, is_cancelled: restOfEventData.is_cancelled, flyer_url: restOfEventData.flyer_url };
 };
-export const eventFromSupabase = (dbEvent: any): Omit<Event, 'organizerType'> & { id: string } => ({ id: dbEvent.id, subject: dbEvent.subject, date: dbEvent.date, startTime: dbEvent.start_time, endTime: dbEvent.end_time, location: dbEvent.location, externalParticipantsCount: dbEvent.external_participants_count, description: dbEvent.description, cost: dbEvent.cost, investment: dbEvent.investment, revenue: dbEvent.revenue, is_cancelled: dbEvent.is_cancelled });
+export const eventFromSupabase = (dbEvent: any): Omit<Event, 'organizerType'> & { id: string } => ({ id: dbEvent.id, subject: dbEvent.subject, date: dbEvent.date, startTime: dbEvent.start_time, endTime: dbEvent.end_time, location: dbEvent.location, externalParticipantsCount: dbEvent.external_participants_count, description: dbEvent.description, cost: dbEvent.cost, investment: dbEvent.investment, revenue: dbEvent.revenue, is_cancelled: dbEvent.is_cancelled, flyer_url: dbEvent.flyer_url });
 
 export { supabase };

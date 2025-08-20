@@ -391,20 +391,28 @@ CIEC.Now`
         setCurrentStep(prev => prev + 1);
       } else {
         setIsUploading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          alert('Error: Sesión de usuario no encontrada. Por favor, inicie sesión de nuevo.');
+          setIsUploading(false);
+          return;
+        }
+
         let flyerUrlToSave: string | null = null;
         if (flyerFile) {
-          // --- CORRECCIÓN: Usar solo el nombre del archivo, sin prefijos de carpeta ---
           const fileName = `${Date.now()}_${flyerFile.name}`;
           const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile);
+          
           if (error) {
             alert(`Error al subir el flyer: ${error.message}`);
             setIsUploading(false);
             return;
           }
+          
           const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
           flyerUrlToSave = data.publicUrl;
         }
-        const finalEventData = { ...formData, flyer_url: flyerUrlToSave || undefined };
+        const finalEventData = { ...formData, flyer_url: flyerUrlToSave };
         onAddEvent(finalEventData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
         setIsUploading(false);
         handleCloseModal();
@@ -416,21 +424,29 @@ CIEC.Now`
   const handleUpdateSubmit = async () => {
     if (eventForViewOrEdit && validateEditForm()) {
         setIsUploading(true);
-        let flyerUrlToSave: string | null | undefined = eventForViewOrEdit.flyer_url;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          alert('Error: Sesión de usuario no encontrada. Por favor, inicie sesión de nuevo.');
+          setIsUploading(false);
+          return;
+        }
+
+        let flyerUrlToSave: string | null = eventForViewOrEdit.flyer_url ?? null;
 
         if (flyerFile) {
-            // --- CORRECCIÓN: Usar solo el nombre del archivo, sin prefijos de carpeta ---
             const fileName = `${Date.now()}_${flyerFile.name}`;
-            const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile, { upsert: true });
+            const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile);
+            
             if (error) {
                 alert(`Error al subir el flyer: ${error.message}`);
                 setIsUploading(false);
                 return;
             }
+            
             const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
             flyerUrlToSave = data.publicUrl;
         } else if (flyerPreview === null) {
-            flyerUrlToSave = undefined;
+            flyerUrlToSave = null;
         }
 
         const finalEventData = { ...formData, flyer_url: flyerUrlToSave };
@@ -752,6 +768,9 @@ CIEC.Now`
               {flyerPreview && (
                   <div className="mt-2 relative w-fit">
                       <img src={flyerPreview} alt="Vista previa del flyer" className="w-full max-w-sm h-auto object-contain rounded shadow" />
+                      <Button variant="danger" size="sm" onClick={() => { setFlyerFile(null); setFlyerPreview(null); }} className="absolute top-1 right-1 !p-1 h-auto">
+                          <TrashIcon className="w-4 h-4" />
+                      </Button>
                   </div>
               )}
             </div>
@@ -940,6 +959,13 @@ CIEC.Now`
                           <Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="danger" size="sm" className="!py-1 !px-2 !text-xs" aria-label={`Eliminar ${event.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
                       </div>
                     </div>
+                     {event.flyer_url && (
+                        <div className="mt-3">
+                            <a href={event.flyer_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                <img src={event.flyer_url} alt={`Flyer for ${event.subject}`} className="h-32 w-full rounded object-cover shadow-md" />
+                            </a>
+                        </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -947,9 +973,16 @@ CIEC.Now`
               {/* Desktop Table View */}
               <div className="hidden md:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-                  <thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asunto</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th></tr></thead>
+                  <thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asunto</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th><th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Flyer</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th></tr></thead>
                   <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                     {filteredEvents.map(event => (<tr key={event.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => handleOpenViewModal(event)}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{event.subject}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getDisplayOrganizerNameForEvent(event)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(event.date).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatTo12Hour(event.startTime)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        {event.flyer_url && (
+                            <a href={event.flyer_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                <img src={event.flyer_url} alt={`Flyer for ${event.subject}`} className="h-10 w-10 rounded object-cover inline-block hover:scale-110 transition-transform" />
+                            </a>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
                           <Button onClick={(e) => { e.stopPropagation(); handleNotify(event.id, event.subject); }} variant="info" size="sm" disabled={notifyingEventId === event.id} aria-label={`Notificar a asistentes de ${event.subject}`}><EmailIcon className="w-4 h-4 mr-1"/>{notifyingEventId === event.id ? 'Enviando...' : 'Notificar'}</Button>
@@ -1036,23 +1069,59 @@ CIEC.Now`
                       <label htmlFor={`participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled ? <span className="text-xs italic">(seleccionado en otra modalidad)</span> : ''}</label>
                   </div>
                 )
-              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
+              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{eventParticipantSearchTerm ? 'No se encontraron participantes.' : 'No hay participantes para seleccionar.'}</p>)}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleEventParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmEventParticipantSelection}>Confirmar Selección</Button></div>
+        </Modal>
+
+        <Modal isOpen={isAddCatModalOpen} onClose={() => setIsAddCatModalOpen(false)} title={`Añadir Nueva ${addCatModalType === 'meeting_category' ? 'Categoría de Reunión' : 'Categoría de Evento'}`}>
+            <form onSubmit={handleAddNewCategory} id="add-category-form" className="space-y-4">
+                <Input
+                    label="Nombre de la Categoría"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    required
+                    autoFocus
+                />
+            </form>
+            <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-slate-700">
+                <Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button>
+                <Button variant="primary" type="submit" form="add-category-form">Guardar Categoría</Button>
+            </div>
+        </Modal>
+
+        <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
+        {eventToDelete && (
+          <div className="text-sm">
+            <p className="mb-4">
+              ¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?
+            </p>
+            <p className="mb-4">
+              Esta acción también eliminará todos sus registros de asistencia asociados.
+            </p>
+            <p>Esta acción no se puede deshacer.</p>
+
+            <div className="flex justify-end mt-6 space-x-2">
+              <Button variant="secondary" onClick={() => setEventToDelete(null)}>
+                Cancelar
+              </Button>
+              <Button variant="danger" onClick={() => {
+                onDeleteEvent(eventToDelete.id);
+                setEventToDelete(null);
+                if (isModalOpen) {
+                  handleCloseModal();
+                }
+              }}>
+                Sí, Eliminar
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
-      <Modal isOpen={isAddCatModalOpen} onClose={() => setIsAddCatModalOpen(false)} title={`Añadir Nueva ${addCatModalType === 'meeting_category' ? 'Categoría de Reunión' : 'Categoría de Evento'}`}>
-        <form onSubmit={handleAddNewCategory} id="add-category-form-events" className="space-y-4">
-          <Input label="Nombre de la Categoría" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required autoFocus />
-        </form>
-        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button><Button variant="primary" type="submit" form="add-category-form-events">Guardar</Button></div>
-      </Modal>
-
-      <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
-        {eventToDelete && (<div className="text-sm"><p className="mb-4">¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?</p><p className="mb-4">Esta acción también eliminará todos sus registros de asistencia asociados.</p><p>Esta acción no se puede deshacer.</p><div className="flex justify-end mt-6 space-x-2"><Button variant="secondary" onClick={() => setEventToDelete(null)}>Cancelar</Button><Button variant="danger" onClick={() => {onDeleteEvent(eventToDelete.id); setEventToDelete(null); if (isModalOpen) handleCloseModal();}}>Sí, Eliminar</Button></div></div>)}
-      </Modal>
     </div>
   );
 };
+
 export default ManageEventsView;

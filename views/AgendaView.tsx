@@ -4,6 +4,8 @@
 
 
 
+
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Meeting, Participant, MeetingCategory, Event, EventCategory, MeetingAttendee, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -481,6 +483,11 @@ CIEC.Now`
                         <h3 className={`text-lg font-semibold ${titleColor} ${isCancelled ? 'line-through' : ''}`}>{`${item.subject} (${itemTypeLabel})`}</h3>
                         {isCancelled && <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">CANCELADO</span>}
                     </div>
+                    {item.type === 'event' && item.originalEvent.flyer_url && (
+                        <a href={item.originalEvent.flyer_url} target="_blank" rel="noopener noreferrer" className="block my-2">
+                            <img src={item.originalEvent.flyer_url} alt="Flyer del evento" className="w-full max-h-48 object-contain rounded-md shadow" />
+                        </a>
+                    )}
                     <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}` : '(Hora de fin no definida)'}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                     {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
@@ -733,6 +740,11 @@ CIEC.Now`
                     <h3 className={`text-lg font-semibold ${titleColor} ${isCancelled ? 'line-through' : ''}`}>{`${item.subject} (${itemTypeLabel})`}</h3>
                     {isCancelled && <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">CANCELADO</span>}
                   </div>
+                   {item.type === 'event' && item.originalEvent.flyer_url && (
+                        <a href={item.originalEvent.flyer_url} target="_blank" rel="noopener noreferrer" className="block my-2">
+                            <img src={item.originalEvent.flyer_url} alt="Flyer del evento" className="w-full max-h-48 object-contain rounded-md shadow" />
+                        </a>
+                    )}
                   <p className="text-sm text-gray-600 dark:text-gray-300">Hora: {formatTo12Hour(item.startTime)} {item.endTime ? `- ${formatTo12Hour(item.endTime)}`: '(Hora de fin no definida)'}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-300"><strong>{organizerLabel}:</strong> {organizerNameDisplay}</p>
                   {item.location && <p className="text-sm text-gray-600 dark:text-gray-300">Lugar: {item.location}</p>}
