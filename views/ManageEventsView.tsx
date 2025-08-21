@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory, Company } from '../types';
+import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory, Company, EventInvitee } from '../types'; // --- NUEVO: Importar EventInvitee
 import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import Select from '../components/ui/Select';
 import Textarea from '../components/ui/Textarea';
 import PlusIcon from '../components/icons/PlusIcon';
 import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import EmailIcon from '../components/icons/EmailIcon';
 import { generateId } from '../constants';
-import PlusCircleIcon from '../components/icons/PlusCircleIcon';
 
 const formatTo12Hour = (timeString: string | null | undefined): string => {
   if (!timeString) return 'N/A';
@@ -24,17 +22,19 @@ const formatTo12Hour = (timeString: string | null | undefined): string => {
   return `${h12}:${minutes} ${ampm}`;
 };
 
+// --- MODIFICADO: Actualizar las props para el nuevo flujo ---
 interface ManageEventsViewProps {
   events: Event[];
   participants: Participant[];
   meetingCategories: MeetingCategory[];
   eventCategories: EventCategory[];
   eventAttendees: EventAttendee[];
+  eventInvitees: EventInvitee[]; // --- NUEVO: Recibir la lista de invitados
   eventOrganizingMeetingCategories: EventOrganizingMeetingCategory[];
   eventOrganizingCategories: EventOrganizingCategory[];
   companies: Company[];
-  onAddEvent: (eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
-  onUpdateEvent: (eventId: string, eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
+  onAddEvent: (eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], inviteeIds: string[], attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
+  onUpdateEvent: (eventId: string, eventData: Omit<Event, 'id'>, selectedOrganizerIds: string[], inviteeIds: string[], attendeesInPersonIds: string[], attendeesOnlineIds: string[]) => void;
   onDeleteEvent: (eventId: string) => void;
   onAddMeetingCategory: (category: MeetingCategory) => void;
   onAddEventCategory: (category: EventCategory) => void;
@@ -81,7 +81,7 @@ const normalizeString = (str: string): string => {
 
 const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   events, participants, meetingCategories, eventCategories,
-  eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories,
+  eventAttendees, eventInvitees, eventOrganizingMeetingCategories, eventOrganizingCategories,
   companies,
   onAddEvent, onUpdateEvent, onDeleteEvent,
   onAddMeetingCategory, onAddEventCategory,
@@ -92,6 +92,8 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [eventForViewOrEdit, setEventForViewOrEdit] = useState<Event | null>(null);
   const [formData, setFormData] = useState<Omit<Event, 'id'>>(initialEventFormState);
   const [selectedOrganizerIdsState, setSelectedOrganizerIdsState] = useState<string[]>([]);
+  
+  const [selectedInviteeIds, setSelectedInviteeIds] = useState<string[]>([]);
   const [selectedAttendeesInPerson, setSelectedAttendeesInPerson] = useState<string[]>([]);
   const [selectedAttendeesOnline, setSelectedAttendeesOnline] = useState<string[]>([]);
 
@@ -101,7 +103,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const [isEventParticipantSelectorModalOpen, setIsEventParticipantSelectorModalOpen] = useState(false);
-  const [eventParticipantSelectionMode, setEventParticipantSelectionMode] = useState<'attendeesInPerson' | 'attendeesOnline' | null>(null);
+  const [eventParticipantSelectionMode, setEventParticipantSelectionMode] = useState<'attendeesInPerson' | 'attendeesOnline' | 'invitees' | null>(null);
   const [tempSelectedEventParticipantIds, setTempSelectedEventParticipantIds] = useState<string[]>([]);
   const [eventParticipantSearchTerm, setEventParticipantSearchTerm] = useState('');
   const eventParticipantSelectAllModalCheckboxRef = useRef<HTMLInputElement>(null);
@@ -223,6 +225,9 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         : eventOrganizingCategories.filter(eoc => eoc.event_id === initialEventToEdit.id).map(eoc => eoc.category_id);
       setSelectedOrganizerIdsState(currentOrganizers);
 
+      const currentInvitees = eventInvitees.filter(ei => ei.event_id === initialEventToEdit.id).map(ei => ei.participant_id);
+      setSelectedInviteeIds(currentInvitees);
+
       const currentAttendees = eventAttendees.filter(ea => ea.event_id === initialEventToEdit.id);
       setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
       setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
@@ -234,7 +239,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
       setFormErrors({});
       setIsModalOpen(true);
     }
-  }, [initialEventToEdit, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
+  }, [initialEventToEdit, eventAttendees, eventInvitees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
 
   useEffect(() => {
     if (isModalOpen && eventForViewOrEdit && (modalMode === 'edit' || modalMode === 'view')) {
@@ -253,6 +258,9 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
             : eventOrganizingCategories.filter(eoc => eoc.event_id === eventForViewOrEdit.id).map(eoc => eoc.category_id);
         setSelectedOrganizerIdsState(currentOrganizers);
 
+        const currentInvitees = eventInvitees.filter(ei => ei.event_id === eventForViewOrEdit.id).map(ei => ei.participant_id);
+        setSelectedInviteeIds(currentInvitees);
+
         const currentAttendees = eventAttendees.filter(ea => ea.event_id === eventForViewOrEdit.id);
         setSelectedAttendeesInPerson(currentAttendees.filter(ea => ea.attendance_type === 'in_person').map(ea => ea.participant_id));
         setSelectedAttendeesOnline(currentAttendees.filter(ea => ea.attendance_type === 'online').map(ea => ea.participant_id));
@@ -260,7 +268,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
         setFlyerFile(null);
         setFlyerPreview(eventForViewOrEdit.flyer_url || null);
     }
-  }, [eventForViewOrEdit, modalMode, isModalOpen, eventAttendees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
+  }, [eventForViewOrEdit, modalMode, isModalOpen, eventAttendees, eventInvitees, eventOrganizingMeetingCategories, eventOrganizingCategories]);
 
   useEffect(() => {
     if (!isModalOpen) {
@@ -275,7 +283,10 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     if (onClearEditingEvent) onClearEditingEvent();
     setEventForViewOrEdit(null);
     setFormData({...initialEventFormState, date: getTodayDateString()});
-    setSelectedOrganizerIdsState([]); setSelectedAttendeesInPerson([]); setSelectedAttendeesOnline([]);
+    setSelectedOrganizerIdsState([]); 
+    setSelectedInviteeIds([]);
+    setSelectedAttendeesInPerson([]); 
+    setSelectedAttendeesOnline([]);
     setFlyerFile(null);
     setFlyerPreview(null);
     setCurrentStep(1); setFormErrors({}); setModalMode('create'); setIsModalOpen(true);
@@ -296,48 +307,35 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     if (onClearEditingEvent) onClearEditingEvent();
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (formErrors[name]) setFormErrors(prev => ({...prev, [name]: ''}));
   };
 
-  const handleSendInvitation = (event: Event) => {
-    const attendees = eventAttendees.filter(ea => ea.event_id === event.id);
-    const participantEmails = attendees.map(attendee => {
-      const participant = participants.find(p => p.id === attendee.participant_id);
-      return participant?.email;
-    }).filter((email): email is string => !!email);
-
-    if (participantEmails.length === 0) {
-      alert('No hay participantes con correos electrónicos registrados para este evento.');
+  const handleSendInvitations = async (event: Event) => {
+    const invitees = eventInvitees.filter(ei => ei.event_id === event.id);
+    if (invitees.length === 0) {
+      alert('No hay invitados registrados para este evento. Añada invitados antes de enviar las invitaciones.');
       return;
     }
-
-    const to = participantEmails.join(',');
-    const subject = encodeURIComponent(`Invitación: ${event.subject}`);
-
-    const formattedDate = new Date(event.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-
-    const body = encodeURIComponent(
-`Hola,
-
-Estás invitado(a) al siguiente evento:
-
-Asunto: ${event.subject}
-Fecha: ${formattedDate}
-Hora: ${formatTo12Hour(event.startTime)}${event.endTime ? ` - ${formatTo12Hour(event.endTime)}` : ''}
-Lugar: ${event.location || 'No especificado'}
-
-Descripción:
-${event.description || 'Sin descripción.'}
-
-Saludos,
-CIEC.Now`
-    );
-
-    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
-};
+    
+    if (window.confirm(`¿Está seguro de que desea enviar ${invitees.length} invitaciones por correo para el evento "${event.subject}"?`)) {
+      setNotifyingEventId(event.id);
+      try {
+          const { error } = await supabase.functions.invoke('notify-event-attendees', {
+              body: { eventId: event.id },
+          });
+          if (error) throw error;
+          alert('Invitaciones enviadas con éxito.');
+      } catch (error: any) {
+          console.error('Error al enviar invitaciones:', error);
+          alert(`Error al enviar invitaciones: ${error.message}`);
+      } finally {
+          setNotifyingEventId(null);
+      }
+    }
+  };
 
 
   const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,12 +357,6 @@ CIEC.Now`
       if (!formData.date) errors.date = 'La fecha es obligatoria.';
       if (!formData.startTime) errors.startTime = 'La hora de inicio es obligatoria.';
       if (formData.endTime && formData.startTime && formData.endTime <= formData.startTime) errors.endTime = 'La hora de fin debe ser posterior a la hora de inicio.';
-    } else if (currentStep === 3 && typeof formData.externalParticipantsCount === 'number' && formData.externalParticipantsCount < 0) {
-      errors.externalParticipantsCount = 'El número no puede ser negativo.';
-    } else if (currentStep === 4) {
-      if (typeof formData.cost === 'number' && formData.cost < 0) errors.cost = 'El costo no puede ser negativo.';
-      if (typeof formData.investment === 'number' && formData.investment < 0) errors.investment = 'La inversión no puede ser negativa.';
-      if (typeof formData.revenue === 'number' && formData.revenue < 0) errors.revenue = 'Los ingresos no pueden ser negativos.';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -377,10 +369,6 @@ CIEC.Now`
     if (!formData.date) errors.date = 'La fecha es obligatoria.';
     if (!formData.startTime) errors.startTime = 'La hora de inicio es obligatoria.';
     if (formData.endTime && formData.startTime && formData.endTime <= formData.startTime) errors.endTime = 'La hora de fin debe ser posterior a la hora de inicio.';
-    if (typeof formData.externalParticipantsCount === 'number' && formData.externalParticipantsCount < 0) errors.externalParticipantsCount = 'El número no puede ser negativo.';
-    if (typeof formData.cost === 'number' && formData.cost < 0) errors.cost = 'El costo no puede ser negativo.';
-    if (typeof formData.investment === 'number' && formData.investment < 0) errors.investment = 'La inversión no puede ser negativa.';
-    if (typeof formData.revenue === 'number' && formData.revenue < 0) errors.revenue = 'Los ingresos no pueden ser negativos.';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -402,18 +390,16 @@ CIEC.Now`
         if (flyerFile) {
           const fileName = `${Date.now()}_${flyerFile.name}`;
           const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile);
-          
           if (error) {
             alert(`Error al subir el flyer: ${error.message}`);
             setIsUploading(false);
             return;
           }
-          
           const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
           flyerUrlToSave = data.publicUrl;
         }
-        const finalEventData = { ...formData, flyer_url: flyerUrlToSave };
-        onAddEvent(finalEventData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
+        const finalEventData = { ...formData, flyer_url: flyerUrlToSave || undefined };
+        onAddEvent(finalEventData, selectedOrganizerIdsState, selectedInviteeIds, selectedAttendeesInPerson, selectedAttendeesOnline);
         setIsUploading(false);
         handleCloseModal();
       }
@@ -431,34 +417,36 @@ CIEC.Now`
           return;
         }
 
-        let flyerUrlToSave: string | null = eventForViewOrEdit.flyer_url ?? null;
+        let flyerUrlToSave: string | null | undefined = eventForViewOrEdit.flyer_url;
 
         if (flyerFile) {
             const fileName = `${Date.now()}_${flyerFile.name}`;
-            const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile);
-            
+            const { error } = await supabase.storage.from('event_flyers').upload(fileName, flyerFile, { upsert: true });
             if (error) {
                 alert(`Error al subir el flyer: ${error.message}`);
                 setIsUploading(false);
                 return;
             }
-            
             const { data } = supabase.storage.from('event_flyers').getPublicUrl(fileName);
             flyerUrlToSave = data.publicUrl;
         } else if (flyerPreview === null) {
-            flyerUrlToSave = null;
+            flyerUrlToSave = undefined;
         }
 
         const finalEventData = { ...formData, flyer_url: flyerUrlToSave };
-        onUpdateEvent(eventForViewOrEdit.id, finalEventData, selectedOrganizerIdsState, selectedAttendeesInPerson, selectedAttendeesOnline);
+        onUpdateEvent(eventForViewOrEdit.id, finalEventData, selectedOrganizerIdsState, selectedInviteeIds, selectedAttendeesInPerson, selectedAttendeesOnline);
         setIsUploading(false);
         handleCloseModal();
     }
   };
 
-  const handleOpenEventParticipantSelector = (mode: 'attendeesInPerson' | 'attendeesOnline') => {
+  const handleOpenEventParticipantSelector = (mode: 'attendeesInPerson' | 'attendeesOnline' | 'invitees') => {
     setEventParticipantSelectionMode(mode);
-    setTempSelectedEventParticipantIds(mode === 'attendeesInPerson' ? selectedAttendeesInPerson : selectedAttendeesOnline);
+    if (mode === 'invitees') {
+      setTempSelectedEventParticipantIds(selectedInviteeIds);
+    } else {
+      setTempSelectedEventParticipantIds(mode === 'attendeesInPerson' ? selectedAttendeesInPerson : selectedAttendeesOnline);
+    }
     setEventParticipantSearchTerm('');
     setIsEventParticipantSelectorModalOpen(true);
   };
@@ -475,7 +463,14 @@ CIEC.Now`
 
   const availableEventParticipantsForSelector = useMemo(() => {
     if (!eventParticipantSelectionMode) return [];
-    const otherModeSelectedIds = eventParticipantSelectionMode === 'attendeesInPerson' ? selectedAttendeesOnline : selectedAttendeesInPerson;
+    
+    let otherModeSelectedIds: string[] = [];
+    if (eventParticipantSelectionMode === 'attendeesInPerson') {
+      otherModeSelectedIds = selectedAttendeesOnline;
+    } else if (eventParticipantSelectionMode === 'attendeesOnline') {
+      otherModeSelectedIds = selectedAttendeesInPerson;
+    }
+
     const normalizedSearch = normalizeString(eventParticipantSearchTerm);
     return participants
       .filter(p => normalizeString(p.name).includes(normalizedSearch))
@@ -517,9 +512,40 @@ CIEC.Now`
   }, [tempSelectedEventParticipantIds, availableEventParticipantsForSelector, isEventParticipantSelectorModalOpen]);
 
   const handleConfirmEventParticipantSelection = () => {
-    if (eventParticipantSelectionMode === 'attendeesInPerson') setSelectedAttendeesInPerson(tempSelectedEventParticipantIds);
-    else if (eventParticipantSelectionMode === 'attendeesOnline') setSelectedAttendeesOnline(tempSelectedEventParticipantIds);
+    if (eventParticipantSelectionMode === 'invitees') {
+      setSelectedInviteeIds(tempSelectedEventParticipantIds);
+    } else if (eventParticipantSelectionMode === 'attendeesInPerson') {
+      setSelectedAttendeesInPerson(tempSelectedEventParticipantIds);
+    } else if (eventParticipantSelectionMode === 'attendeesOnline') {
+      setSelectedAttendeesOnline(tempSelectedEventParticipantIds);
+    }
     handleEventParticipantSelectionModalClose();
+  };
+  
+  const handleSuggestInvitees = async () => {
+    if (selectedOrganizerIdsState.length === 0) {
+      alert('Por favor, seleccione primero una categoría para poder sugerir invitados.');
+      return;
+    }
+
+    let pastEventIds: string[] = [];
+    if (formData.organizerType === 'meeting_category') {
+      const { data } = await supabase.from('event_organizing_meeting_categories').select('event_id').in('meeting_category_id', selectedOrganizerIdsState);
+      pastEventIds = data?.map(e => e.event_id) || [];
+    } else {
+      const { data } = await supabase.from('event_organizing_categories').select('event_id').in('category_id', selectedOrganizerIdsState);
+      pastEventIds = data?.map(e => e.event_id) || [];
+    }
+    
+    if (pastEventIds.length > 0) {
+      const { data: pastAttendees } = await supabase.from('event_attendees').select('participant_id').in('event_id', pastEventIds);
+      const suggestedIds = pastAttendees?.map(a => a.participant_id) || [];
+      
+      setTempSelectedEventParticipantIds(prev => [...new Set([...prev, ...suggestedIds])]);
+      alert(`${suggestedIds.length} invitados sugeridos y añadidos a la selección actual.`);
+    } else {
+      alert('No se encontraron eventos pasados en esta categoría para sugerir invitados.');
+    }
   };
 
   const handleOpenOrganizerSelector = () => {
@@ -593,7 +619,9 @@ CIEC.Now`
               });
           }
       });
+      // --- CORRECCIÓN: Añadir .filter(Boolean) para evitar errores con datos indefinidos ---
       return meetingCategories
+          .filter(Boolean)
           .map(c => ({ ...c, count: counts[c.id] || 0 }))
           .filter(c => c.count > 0)
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -610,28 +638,34 @@ CIEC.Now`
               });
           }
       });
+      // --- CORRECCIÓN: Añadir .filter(Boolean) para evitar errores con datos indefinidos ---
       return eventCategories
+          .filter(Boolean)
           .map(c => ({ ...c, count: counts[c.id] || 0 }))
           .filter(c => c.count > 0)
           .sort((a, b) => a.name.localeCompare(b.name));
   }, [eventCategories, eventsFilteredBySearch, eventOrganizingCategories]);
 
+  // --- CORRECCIÓN: Optimizar este hook para evitar re-renderizados innecesarios ---
   useEffect(() => {
     const allOrganizers = [
         ...sidebarMeetingCategoryOrganizers.map(c => ({ type: 'meeting_category', id: c.id })),
         ...sidebarEventCategoryOrganizers.map(c => ({ type: 'category', id: c.id })),
     ];
 
-    const isSelectedOrganizerPresent = allOrganizers.some(
-        org => org.id === selectedOrganizer?.id && org.type === selectedOrganizer?.type
-    );
+    const isSelectedOrganizerStillValid = selectedOrganizer 
+        ? allOrganizers.some(org => org.id === selectedOrganizer.id && org.type === selectedOrganizer.type)
+        : false;
 
-    if (!isSelectedOrganizerPresent && allOrganizers.length > 0) {
-      setSelectedOrganizer(allOrganizers[0]);
-    } else if (allOrganizers.length === 0) {
-      setSelectedOrganizer(null);
+    if (!isSelectedOrganizerStillValid) {
+        if (allOrganizers.length > 0) {
+            setSelectedOrganizer(allOrganizers[0]);
+        } else {
+            setSelectedOrganizer(null);
+        }
     }
-  }, [sidebarMeetingCategoryOrganizers, sidebarEventCategoryOrganizers, selectedOrganizer]);
+  }, [sidebarMeetingCategoryOrganizers, sidebarEventCategoryOrganizers]); // Se eliminó 'selectedOrganizer' de las dependencias
+
 
   const filteredEvents = useMemo(() => {
     if (!selectedOrganizer) return [];
@@ -680,29 +714,24 @@ CIEC.Now`
     }
   };
 
-  const handleNotify = async (eventId: string, eventSubject: string) => {
-    if (window.confirm(`¿Está seguro de que desea notificar a todos los asistentes del evento "${eventSubject}"?`)) {
-        setNotifyingEventId(eventId);
-        try {
-            const { error } = await supabase.functions.invoke('notify-event-attendees', {
-                body: { eventId },
-            });
-            if (error) throw error;
-            alert('Notificaciones enviadas con éxito.');
-        } catch (error: any) {
-            console.error('Error al notificar a los asistentes:', error);
-            alert(`Error al enviar notificaciones: ${error.message}`);
-        } finally {
-            setNotifyingEventId(null);
-        }
-    }
-  };
-
-  const renderParticipantSelectionButton = (attendeeList: string[], mode: 'attendeesInPerson' | 'attendeesOnline', label: string) => (
+  const renderParticipantSelectionButton = (
+    list: string[],
+    mode: 'attendeesInPerson' | 'attendeesOnline' | 'invitees',
+    label: string
+  ) => (
     <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
-        <Button type="button" variant="secondary" onClick={() => handleOpenEventParticipantSelector(mode)} className="w-full justify-center">Seleccionar ({attendeeList.length})</Button>
-        {attendeeList.length > 0 && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-h-16 overflow-y-auto p-1 border dark:border-gray-600 rounded">{attendeeList.map(getParticipantName).join(', ')}</div>)}
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" onClick={() => handleOpenEventParticipantSelector(mode)} className="w-full justify-center">
+            Seleccionar ({list.length})
+          </Button>
+          {mode === 'invitees' && (
+            <Button type="button" variant="outline" onClick={handleSuggestInvitees}>
+              Sugerir
+            </Button>
+          )}
+        </div>
+        {list.length > 0 && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-400 max-h-16 overflow-y-auto p-1 border dark:border-gray-600 rounded">{list.map(getParticipantName).join(', ')}</div>)}
     </div>
   );
 
@@ -757,7 +786,16 @@ CIEC.Now`
           </div>
         );
         case 2: return <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div><Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark]" /><Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} /></div>
-        case 3: return <div className="space-y-4">{renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales (Opcional)')}{renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea (Opcional)')}<Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} /></div>;
+        case 3: return (
+          <div className="space-y-4">
+            {renderParticipantSelectionButton(selectedInviteeIds, 'invitees', 'Invitados al Evento')}
+            <hr className="dark:border-gray-600"/>
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Registro de Asistencia (Opcional, post-evento)</h3>
+            {renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales')}
+            {renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea')}
+            <Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} />
+          </div>
+        );
         case 4: return <div className="space-y-4">
             <Input label="Costo" name="cost" type="number" value={formData.cost ?? ''} onChange={handleNumberInputChange} error={formErrors.cost} prefix="$" placeholder="0.00" />
             <Input label="Inversión" name="investment" type="number" value={formData.investment ?? ''} onChange={handleNumberInputChange} error={formErrors.investment} prefix="$" placeholder="0.00" />
@@ -787,6 +825,9 @@ CIEC.Now`
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Fecha" name="date" type="date" value={formData.date} onChange={handleInputChange} required error={formErrors.date} className="dark:[color-scheme:dark]" /><Input label="Hora de Inicio" name="startTime" type="time" value={formData.startTime || ''} onChange={handleInputChange} required error={formErrors.startTime} className="dark:[color-scheme:dark]" /></div>
       <Input label="Hora de Fin (Opcional)" name="endTime" type="time" value={formData.endTime || ''} onChange={handleInputChange} error={formErrors.endTime} className="dark:[color-scheme:dark]" />
       <Input label="Lugar (Opcional)" name="location" value={formData.location || ''} onChange={handleInputChange} />
+      {renderParticipantSelectionButton(selectedInviteeIds, 'invitees', 'Invitados al Evento')}
+      <hr className="dark:border-gray-600"/>
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400">Registro de Asistencia</h3>
       {renderParticipantSelectionButton(selectedAttendeesInPerson, 'attendeesInPerson', 'Asistentes Presenciales')}
       {renderParticipantSelectionButton(selectedAttendeesOnline, 'attendeesOnline', 'Asistentes En Línea')}
       <Input label="Nº Participantes Externos (Opcional)" name="externalParticipantsCount" type="number" min="0" value={formData.externalParticipantsCount || 0} onChange={handleNumberInputChange} error={formErrors.externalParticipantsCount} />
@@ -954,18 +995,11 @@ CIEC.Now`
                         <p className="text-xs text-gray-500 dark:text-gray-400"><strong>Hora:</strong> {formatTo12Hour(event.startTime)}</p>
                       </div>
                       <div className="flex-shrink-0 flex flex-col items-stretch gap-2">
-                          <Button onClick={(e) => { e.stopPropagation(); handleNotify(event.id, event.subject); }} variant="info" size="sm" className="!py-1 !px-2 !text-xs justify-center" disabled={notifyingEventId === event.id} aria-label={`Notificar a asistentes de ${event.subject}`}><EmailIcon className="w-3 h-3 mr-1"/>{notifyingEventId === event.id ? '...' : 'Notificar'}</Button>
+                          <Button onClick={(e) => { e.stopPropagation(); handleSendInvitations(event); }} variant="info" size="sm" className="!py-1 !px-2 !text-xs justify-center" disabled={notifyingEventId === event.id} aria-label={`Enviar invitaciones para ${event.subject}`}><EmailIcon className="w-3 h-3 mr-1"/>{notifyingEventId === event.id ? '...' : 'Invitar'}</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" className="!py-1 !px-2 !text-xs" aria-label={`Editar ${event.subject}`}><EditIcon className="w-3 h-3 mr-1"/>Editar</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="danger" size="sm" className="!py-1 !px-2 !text-xs" aria-label={`Eliminar ${event.subject}`}><TrashIcon className="w-3 h-3 mr-1"/>Eliminar</Button>
                       </div>
                     </div>
-                     {event.flyer_url && (
-                        <div className="mt-3">
-                            <a href={event.flyer_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                                <img src={event.flyer_url} alt={`Flyer for ${event.subject}`} className="h-32 w-full rounded object-cover shadow-md" />
-                            </a>
-                        </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -973,19 +1007,12 @@ CIEC.Now`
               {/* Desktop Table View */}
               <div className="hidden md:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-                  <thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asunto</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th><th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Flyer</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th></tr></thead>
+                  <thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asunto</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th></tr></thead>
                   <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-700">
                     {filteredEvents.map(event => (<tr key={event.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => handleOpenViewModal(event)}><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{event.subject}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{getDisplayOrganizerNameForEvent(event)}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(event.date).toLocaleDateString('es-ES', { timeZone: 'UTC' })}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{formatTo12Hour(event.startTime)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                        {event.flyer_url && (
-                            <a href={event.flyer_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                                <img src={event.flyer_url} alt={`Flyer for ${event.subject}`} className="h-10 w-10 rounded object-cover inline-block hover:scale-110 transition-transform" />
-                            </a>
-                        )}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
-                          <Button onClick={(e) => { e.stopPropagation(); handleNotify(event.id, event.subject); }} variant="info" size="sm" disabled={notifyingEventId === event.id} aria-label={`Notificar a asistentes de ${event.subject}`}><EmailIcon className="w-4 h-4 mr-1"/>{notifyingEventId === event.id ? 'Enviando...' : 'Notificar'}</Button>
+                          <Button onClick={(e) => { e.stopPropagation(); handleSendInvitations(event); }} variant="info" size="sm" disabled={notifyingEventId === event.id} aria-label={`Enviar invitaciones para ${event.subject}`}><EmailIcon className="w-4 h-4 mr-1"/>{notifyingEventId === event.id ? 'Enviando...' : 'Invitar'}</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventForViewOrEdit(event); setModalMode('edit'); setIsModalOpen(true); }} variant="accent" size="sm" aria-label={`Editar ${event.subject}`}><EditIcon className="w-4 h-4 mr-1"/>Editar</Button>
                           <Button onClick={(e) => { e.stopPropagation(); setEventToDelete(event); }} variant="danger" size="sm" aria-label={`Eliminar ${event.subject}`}><TrashIcon className="w-4 h-4 mr-1"/>Eliminar</Button>
                         </div>
@@ -1019,8 +1046,8 @@ CIEC.Now`
           )}
           {modalMode === 'view' && eventForViewOrEdit && (
             <div className="w-full flex flex-col sm:flex-row items-center gap-2">
-              <Button type="button" variant="info" onClick={() => handleSendInvitation(eventForViewOrEdit)} className="w-full sm:flex-1">
-                  <EmailIcon className="w-4 h-4 mr-1"/> Invitar por Correo
+              <Button type="button" variant="info" onClick={() => handleSendInvitations(eventForViewOrEdit)} className="w-full sm:flex-1">
+                  <EmailIcon className="w-4 h-4 mr-1"/> Enviar Invitaciones
               </Button>
               <Button type="button" variant="danger" onClick={() => { if(eventForViewOrEdit) setEventToDelete(eventForViewOrEdit) }} className="w-full sm:flex-1">
                   <TrashIcon className="w-4 h-4 mr-1" /> Eliminar
@@ -1057,7 +1084,7 @@ CIEC.Now`
         <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-slate-700"><Button variant="secondary" onClick={handleOrganizerSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmOrganizerSelection}>Confirmar</Button></div>
       </Modal>
 
-      <Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`} size="lg">
+      <Modal isOpen={isEventParticipantSelectorModalOpen} onClose={handleEventParticipantSelectionModalClose} title={`Seleccionar ${eventParticipantSelectionMode === 'invitees' ? 'Invitados' : `Asistentes ${eventParticipantSelectionMode === 'attendeesInPerson' ? 'Presenciales' : 'En Línea'}`}`} size="lg">
           <div className="space-y-4"><Input type="search" placeholder="Buscar participante por nombre..." value={eventParticipantSearchTerm} onChange={(e) => setEventParticipantSearchTerm(e.target.value)} autoFocus />
             {availableEventParticipantsForSelector.length > 0 && (<div className="flex items-center my-2"><input type="checkbox" id="select-all-participants-modal" className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700" ref={eventParticipantSelectAllModalCheckboxRef} onChange={handleSelectAllFilteredEventParticipants} /><label htmlFor="select-all-participants-modal" className="ml-2 text-sm text-gray-700 dark:text-gray-300">Seleccionar/Deseleccionar todos los visibles y habilitados</label></div>)}
             <div ref={eventParticipantListRef} onKeyDown={handleEventParticipantKeyDown} tabIndex={-1} className="max-h-60 overflow-y-auto border dark:border-gray-600 rounded-md p-2 space-y-1 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500">
@@ -1069,57 +1096,22 @@ CIEC.Now`
                       <label htmlFor={`participant-select-${p.id}`} className={`ml-2 text-sm w-full pointer-events-none ${p.isDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>{p.name} {p.isDisabled ? <span className="text-xs italic">(seleccionado en otra modalidad)</span> : ''}</label>
                   </div>
                 )
-              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{eventParticipantSearchTerm ? 'No se encontraron participantes.' : 'No hay participantes para seleccionar.'}</p>)}
+              })) : (<p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No se encontraron participantes.</p>)}
             </div>
           </div>
           <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={handleEventParticipantSelectionModalClose}>Cancelar</Button><Button variant="primary" onClick={handleConfirmEventParticipantSelection}>Confirmar Selección</Button></div>
-        </Modal>
-
-        <Modal isOpen={isAddCatModalOpen} onClose={() => setIsAddCatModalOpen(false)} title={`Añadir Nueva ${addCatModalType === 'meeting_category' ? 'Categoría de Reunión' : 'Categoría de Evento'}`}>
-            <form onSubmit={handleAddNewCategory} id="add-category-form" className="space-y-4">
-                <Input
-                    label="Nombre de la Categoría"
-                    value={newCatName}
-                    onChange={(e) => setNewCatName(e.target.value)}
-                    required
-                    autoFocus
-                />
-            </form>
-            <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-slate-700">
-                <Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button>
-                <Button variant="primary" type="submit" form="add-category-form">Guardar Categoría</Button>
-            </div>
-        </Modal>
-
-        <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
-        {eventToDelete && (
-          <div className="text-sm">
-            <p className="mb-4">
-              ¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?
-            </p>
-            <p className="mb-4">
-              Esta acción también eliminará todos sus registros de asistencia asociados.
-            </p>
-            <p>Esta acción no se puede deshacer.</p>
-
-            <div className="flex justify-end mt-6 space-x-2">
-              <Button variant="secondary" onClick={() => setEventToDelete(null)}>
-                Cancelar
-              </Button>
-              <Button variant="danger" onClick={() => {
-                onDeleteEvent(eventToDelete.id);
-                setEventToDelete(null);
-                if (isModalOpen) {
-                  handleCloseModal();
-                }
-              }}>
-                Sí, Eliminar
-              </Button>
-            </div>
-          </div>
-        )}
       </Modal>
 
+      <Modal isOpen={isAddCatModalOpen} onClose={() => setIsAddCatModalOpen(false)} title={`Añadir Nueva ${addCatModalType === 'meeting_category' ? 'Categoría de Reunión' : 'Categoría de Evento'}`}>
+        <form onSubmit={handleAddNewCategory} id="add-category-form-events" className="space-y-4">
+          <Input label="Nombre de la Categoría" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} required autoFocus />
+        </form>
+        <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700"><Button variant="secondary" onClick={() => setIsAddCatModalOpen(false)}>Cancelar</Button><Button variant="primary" type="submit" form="add-category-form-events">Guardar</Button></div>
+      </Modal>
+
+      <Modal isOpen={!!eventToDelete} onClose={() => setEventToDelete(null)} title="Confirmar Eliminación">
+        {eventToDelete && (<div className="text-sm"><p className="mb-4">¿Está seguro de que desea eliminar el evento: <strong>"{eventToDelete.subject}"</strong>?</p><p className="mb-4">Esta acción también eliminará todos sus registros de asistencia asociados.</p><p>Esta acción no se puede deshacer.</p><div className="flex justify-end mt-6 space-x-2"><Button variant="secondary" onClick={() => setEventToDelete(null)}>Cancelar</Button><Button variant="danger" onClick={() => {onDeleteEvent(eventToDelete.id); setEventToDelete(null); if (isModalOpen) handleCloseModal();}}>Sí, Eliminar</Button></div></div>)}
+      </Modal>
     </div>
   );
 };

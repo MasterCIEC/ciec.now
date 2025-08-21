@@ -8,6 +8,7 @@ import EditIcon from '../components/icons/EditIcon';
 import TrashIcon from '../components/icons/TrashIcon';
 import { generateId } from '../constants';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
+import { supabase } from '../supabaseClient';
 
 interface ManageMeetingCategoriesViewProps {
   meetingCategories: MeetingCategory[];

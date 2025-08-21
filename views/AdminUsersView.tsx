@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
-import { UserProfile, Role } from '../types';
+import { supabase, Database } from '../supabaseClient';
+import { UserProfile, Role, Permission } from '../types';
 import Button from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import Select from '../components/ui/Select';
@@ -16,12 +16,6 @@ interface AdminUsersViewProps {
   users: UserProfile[];
   roles: Role[];
   onUpdate: () => void;
-}
-
-interface Permission {
-  id: number;
-  action: string;
-  subject: string;
 }
 
 interface ManagePermissionsModalProps {
@@ -95,6 +89,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       const fetchData = async () => {
+        if (!supabase) return;
         setLoading(true);
         try {
           const { data: permissionsData, error: permissionsError } = await supabase.from('permissions').select('*');
@@ -106,7 +101,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
 
           const permsMap: Record<number, number[]> = {};
           for (const role of initialRoles) {
-            permsMap[role.id] = (rolePermsData as any[])
+            permsMap[role.id] = (rolePermsData || [])
               .filter(rp => rp.role_id === role.id)
               .map(rp => rp.permission_id);
           }
@@ -165,7 +160,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
   };
 
   const handleSaveChanges = async () => {
-    if (!selectedRole) return;
+    if (!selectedRole || !supabase) return;
     setSaving(true);
     
     const originalPerms = new Set(initialRolePermissions[selectedRole.id] || []);
@@ -185,9 +180,10 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
       }
       
       if (permsToAdd.length > 0) {
+        const permsToAddObjects: Database['public']['Tables']['rolepermissions']['Insert'][] = permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id }));
         const { error } = await supabase
           .from('rolepermissions')
-          .insert(permsToAdd.map(permission_id => ({ role_id: selectedRole.id, permission_id })));
+          .insert(permsToAddObjects);
         if (error) throw error;
       }
       
@@ -216,7 +212,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
 
   const handleRoleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleNameInput.trim()) {
+    if (!roleNameInput.trim() || !supabase) {
       alert('El nombre del rol no puede estar vacío.');
       return;
     }
@@ -250,6 +246,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
   };
 
   const handleOpenDeleteConfirm = async (role: Role) => {
+    if (!supabase) return;
     setIsCheckingUsage(true);
     setRoleToDelete(role);
     try {
@@ -269,7 +266,7 @@ const ManagePermissionsModal: React.FC<ManagePermissionsModalProps> = ({
   };
 
   const handleConfirmDelete = async () => {
-    if (!roleToDelete || usersWithRoleCount > 0) return;
+    if (!roleToDelete || usersWithRoleCount > 0 || !supabase) return;
     try {
       const { error } = await supabase.from('roles').delete().eq('id', roleToDelete.id);
       if (error) throw error;
@@ -446,6 +443,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, 
   const { profile } = useAuth();
 
   const handleApproveUser = useCallback(async (userId: string) => {
+    if (!supabase) return;
     const { error } = await supabase
       .from('userprofiles')
       .update({ is_approved: true })
@@ -456,6 +454,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, 
   }, [onUpdate]);
 
   const handleRoleChange = useCallback(async (userId: string, newRoleId: string) => {
+    if (!supabase) return;
     const { error } = await supabase
       .from('userprofiles')
       .update({ role_id: newRoleId ? parseInt(newRoleId, 10) : null })
@@ -467,6 +466,7 @@ const AdminUsersView: React.FC<AdminUsersViewProps> = ({ onNavigateBack, users, 
   
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) return;
     setInviteLoading(true);
     setInviteMessage(null);
     try {

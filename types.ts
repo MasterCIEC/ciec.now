@@ -98,6 +98,11 @@ export interface EventAttendee {
   attendance_type: 'in_person' | 'online';
 }
 
+export interface EventInvitee {
+  event_id: string;
+  participant_id: string;
+}
+
 export interface EventOrganizingMeetingCategory {
   event_id: string;
   meeting_category_id: string;
@@ -114,6 +119,7 @@ export interface Role {
 }
 
 export interface Permission {
+  id: number;
   action: string;
   subject: string;
 }
@@ -135,7 +141,7 @@ export interface ModalProps {
 }
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent' | 'info';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent' | 'info' | 'outline';
   size?: 'sm' | 'md' | 'lg';
 }
 

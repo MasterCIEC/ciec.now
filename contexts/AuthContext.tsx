@@ -1,16 +1,14 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode, useRef, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 import { AuthSession, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
-import { UserProfile } from '../types';
+import { UserProfile, Permission } from '../types';
 
 type AuthContextType = {
   session: AuthSession | null;
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  signOut: (options?: { dueToInactivity?: boolean }) => Promise<void>;
-  showInactivityModal: boolean;
-  closeInactivityModal: () => void;
+  signOut: () => Promise<void>;
   awaitingPasswordReset: boolean;
   setAwaitingPasswordReset: React.Dispatch<React.SetStateAction<boolean>>;
   can: (action: string, subject: string) => boolean;
@@ -18,160 +16,117 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element => {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showInactivityModal, setShowInactivityModal] = useState(false);
   const [awaitingPasswordReset, setAwaitingPasswordReset] = useState(false);
-  const inactivityTimer = useRef<number | null>(null);
-  const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [permissions, setPermissions] = useState<Permission[]>([]);
 
-  // --- CORRECCIÓN APLICADA AQUÍ ---
-  // Se centraliza toda la lógica de obtención de datos del usuario en una única función robusta.
-  const refreshSessionData = useCallback(async () => {
-    setLoading(true);
+  const fetchProfileAndPermissions = useCallback(async (user: User) => {
     try {
-      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error("Error fetching session:", sessionError);
-        // Limpiar todo si hay un error de sesión
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setPermissions(new Set());
-        return;
-      }
-
-      setSession(currentSession);
-      const currentUser = currentSession?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser) {
-        // Si hay un usuario, obtener su perfil y permisos
-        const { data: userProfileData, error: profileError } = await supabase
-          .from('userprofiles')
-          .select(`*, roles (id, name)`)
-          .eq('id', currentUser.id)
-          .single();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error("Error fetching profile:", profileError);
-          setProfile(null);
-          setPermissions(new Set());
+      const { data: profileData, error: profileError } = await supabase
+        .from('userprofiles')
+        .select(`
+          id,
+          full_name,
+          is_approved,
+          role_id,
+          roles (
+            id,
+            name
+          )
+        `)
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) throw profileError;
+      if (profileData) {
+        setProfile(profileData as any as UserProfile);
+        
+        if (profileData.role_id) {
+          const { data: permsData, error: permsError } = await supabase
+            .from('rolepermissions')
+            .select(`
+              permissions (
+                action,
+                subject
+              )
+            `)
+            .eq('role_id', profileData.role_id);
+          
+          if (permsError) throw permsError;
+          const userPermissions = permsData?.map(p => p.permissions).flat().filter(Boolean) as Permission[] || [];
+          setPermissions(userPermissions);
         } else {
-          setProfile(userProfileData as any as UserProfile | null);
-          // Si el perfil se carga correctamente, obtener los permisos
-          if ((userProfileData as any)?.roles?.id) {
-            const { data: rolePermissionsData, error: permissionsError } = await supabase
-              .from('rolepermissions')
-              .select('permissions(action, subject)')
-              .eq('role_id', (userProfileData as any).roles.id);
-
-            if (permissionsError) {
-              console.error("Error fetching permissions:", permissionsError);
-              setPermissions(new Set());
-            } else {
-              const userPermissions = new Set<string>(
-                (rolePermissionsData as any[])
-                  .filter(p => p.permissions)
-                  .map(p => `${p.permissions.action}:${p.permissions.subject}`)
-              );
-              setPermissions(userPermissions);
-            }
-          } else {
-            setPermissions(new Set());
-          }
+          setPermissions([]);
         }
-      } else {
-        // Si no hay usuario, limpiar el perfil y los permisos
-        setProfile(null);
-        setPermissions(new Set());
       }
     } catch (error) {
-      console.error("A critical error occurred during session refresh:", error);
-      // Limpiar todo en caso de un error inesperado
-      setSession(null);
-      setUser(null);
+      console.error('Error fetching user profile or permissions:', error);
       setProfile(null);
-      setPermissions(new Set());
-    } finally {
-      setLoading(false);
+      setPermissions([]);
+      // Re-throw the error so the caller can handle it, e.g., in a finally block.
+      throw error;
     }
   }, []);
 
   useEffect(() => {
-    // Carga inicial de la sesión al montar el componente
-    refreshSessionData();
+    setLoading(true);
+    const checkSession = async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchProfileAndPermissions(session.user);
+          }
+        } catch (e) {
+          console.error("Error during initial session check:", e);
+        } finally {
+          setLoading(false);
+        }
+    };
 
-    // El listener de Supabase ahora solo necesita invocar nuestra función centralizada
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Solo refrescamos si el evento indica un cambio real de sesión (login/logout)
-      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT' || _event === 'TOKEN_REFRESHED') {
-        refreshSessionData();
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        setLoading(true);
+        try {
+          await fetchProfileAndPermissions(session.user);
+        } catch (e) {
+          console.error("Error fetching profile on auth change:", e);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setProfile(null);
+        setPermissions([]);
+        setLoading(false); // Also stop loading on logout
       }
     });
 
     return () => {
-      subscription?.unsubscribe();
+      authListener.subscription.unsubscribe();
     };
-  }, [refreshSessionData]);
-  
-  // --- CORRECCIÓN APLICADA AQUÍ ---
-  // Este efecto ahora usa la función centralizada para una recuperación más fiable.
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Cuando la pestaña vuelve a estar visible, forzamos un refresco completo de los datos.
-        refreshSessionData();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [refreshSessionData]);
+  }, [fetchProfileAndPermissions]);
 
-  const signOut = useCallback(async (options?: { dueToInactivity?: boolean }) => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+  const signOut = async () => {
     await supabase.auth.signOut();
-    if (options?.dueToInactivity) setShowInactivityModal(true);
-  }, []);
+  };
+  
+  const can = useCallback((action: string, subject: string) => {
+      if (profile?.roles?.name === 'SuperAdmin') return true;
+      const hasPermission = permissions.some(p => p.action === action && p.subject === subject);
+      if (hasPermission) return true;
+      const canManage = permissions.some(p => p.action === 'manage' && p.subject === subject);
+      return canManage;
+  }, [permissions, profile]);
 
-  const handleInactivity = useCallback(() => {
-    signOut({ dueToInactivity: true });
-  }, [signOut]);
-
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = window.setTimeout(handleInactivity, INACTIVITY_TIMEOUT);
-  }, [handleInactivity]);
-
-  useEffect(() => {
-    if (session) {
-        const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-        events.forEach(event => window.addEventListener(event, resetInactivityTimer, { passive: true }));
-        resetInactivityTimer();
-        return () => {
-            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
-            if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-        };
-    } else {
-        if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    }
-  }, [session, resetInactivityTimer]);
-
-  const closeInactivityModal = () => setShowInactivityModal(false);
-
-  const can = useCallback((action: string, subject: string): boolean => {
-    if (profile?.roles?.name === 'SuperAdmin') {
-      return true;
-    }
-    return permissions.has(`${action}:${subject}`);
-  }, [profile, permissions]);
 
   const value = {
     session,
@@ -179,8 +134,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     profile,
     loading,
     signOut,
-    showInactivityModal,
-    closeInactivityModal,
     awaitingPasswordReset,
     setAwaitingPasswordReset,
     can,

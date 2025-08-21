@@ -1,126 +1,122 @@
 // supabase/functions/notify-event-attendees/index.ts
 
-// We declare Deno here to satisfy TypeScript in environments that don't resolve remote types for Edge Functions.
-// The Supabase Edge Function runtime will provide the actual Deno global.
-declare const Deno: {
-  env: {
-    get(key: string): string | undefined;
-  };
-};
-
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// IMPORTANTE: Esta es una URL de marcador de posición.
-// Deberá ser reemplazada por la URL real del webhook de Make.com en el Paso 4.
+// Tu URL de Webhook de Make.com
 const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/5xvals5fmiyzm4lsj69qpj128eeioo1o'
 
 serve(async (req) => {
-  // Manejo de la solicitud pre-vuelo para CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 1. INICIALIZAR EL CLIENTE ADMIN DE SUPABASE
-    // Se utiliza la 'service_role_key' para realizar consultas con privilegios de administrador,
-    // saltando las políticas de RLS, lo cual es seguro desde el backend.
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 2. RECIBIR Y VALIDAR EL ID DEL EVENTO
     const { eventId } = await req.json()
-    if (!eventId) {
-      throw new Error('El ID del evento es requerido.')
-    }
+    if (!eventId) throw new Error('El ID del evento es requerido.')
+    console.log(`Función invocada para el evento: ${eventId}`);
 
-    // 3. OBTENER DATOS DEL EVENTO Y SUS RELACIONES
-    // Se consulta el evento y se traen los IDs de las comisiones y categorías asociadas.
+    // 1. Obtener detalles del evento actual
     const { data: eventData, error: eventError } = await supabaseAdmin
       .from('Events')
-      .select(`
-        subject, date, start_time, location, description, flyer_url,
-        organizing_commissions:event_organizing_commissions(commission_id),
-        organizing_categories:event_organizing_categories(category_id)
-      `)
+      .select('subject, date, startTime, location, description, flyer_url, organizerType')
       .eq('id', eventId)
       .single()
-
     if (eventError) throw eventError;
+    console.log('Paso 1: Datos del evento obtenidos:', eventData.subject);
 
-    const commissionIds = eventData.organizing_commissions.map(c => c.commission_id)
-    const categoryIds = eventData.organizing_categories.map(c => c.category_id)
+    let relevantEventIds: string[] = [];
 
-    // 4. ALGORITMO PARA ENCONTRAR PARTICIPANTES INTERESADOS
-    // Se utiliza un Map para garantizar una lista de destinatarios sin duplicados.
-    const interestedParticipants = new Map<string, { name: string; email: string }>()
-
-    // A. Buscar asistentes a reuniones de las mismas comisiones
-    if (commissionIds.length > 0) {
-      const { data: meetingAttendees } = await supabaseAdmin
-        .from('meeting_attendees')
-        .select('participant:Participants(id, name, email), meeting:Meetings!inner(commission_id)')
-        .in('meeting.commission_id', commissionIds)
-      
-      meetingAttendees?.forEach(att => {
-        if (att.participant?.email) {
-          interestedParticipants.set(att.participant.id, { name: att.participant.name, email: att.participant.email })
+    // 2. Obtener los IDs de todos los eventos pasados que comparten la misma categoría
+    if (eventData.organizerType === 'meeting_category') {
+        const { data: categoryLinks } = await supabaseAdmin.from('event_organizing_meeting_categories').select('meeting_category_id').eq('event_id', eventId);
+        const commissionIds = categoryLinks?.map(c => c.meeting_category_id) || [];
+        if (commissionIds.length > 0) {
+            const { data: eventLinks } = await supabaseAdmin.from('event_organizing_meeting_categories').select('event_id').in('meeting_category_id', commissionIds);
+            relevantEventIds = eventLinks?.map(e => e.event_id) || [];
         }
-      })
+    } else {
+        const { data: categoryLinks } = await supabaseAdmin.from('event_organizing_categories').select('category_id').eq('event_id', eventId);
+        const categoryIds = categoryLinks?.map(c => c.category_id) || [];
+        if (categoryIds.length > 0) {
+            const { data: eventLinks } = await supabaseAdmin.from('event_organizing_categories').select('event_id').in('category_id', categoryIds);
+            relevantEventIds = eventLinks?.map(e => e.event_id) || [];
+        }
+    }
+    console.log(`Paso 2: Se encontraron ${relevantEventIds.length} eventos relacionados.`);
+
+    if (relevantEventIds.length === 0) {
+        return new Response(JSON.stringify({ message: 'No hay eventos pasados en esta categoría para encontrar participantes.' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+        });
     }
 
-    // B. Buscar asistentes a eventos de las mismas categorías
-    if (categoryIds.length > 0) {
-      const { data: eventAttendees } = await supabaseAdmin
-        .from('event_attendees')
-        .select('participant:Participants(id, name, email), event:Events!inner(organizing_categories:event_organizing_categories!inner(category_id))')
-        .in('event.organizing_categories.category_id', categoryIds)
-
-      eventAttendees?.forEach(att => {
-        if (att.participant?.email) {
-          interestedParticipants.set(att.participant.id, { name: att.participant.name, email: att.participant.email })
-        }
-      })
-    }
+    // 3. Obtener los IDs de los participantes de esos eventos
+    const { data: attendeeLinks, error: attendeeLinksError } = await supabaseAdmin
+      .from('event_attendees')
+      .select('participant_id')
+      .in('event_id', relevantEventIds);
+    if (attendeeLinksError) throw attendeeLinksError;
     
-    const recipientsList = Array.from(interestedParticipants.values())
+    const uniqueParticipantIds = [...new Set(attendeeLinks.map(a => a.participant_id))];
+    console.log(`Paso 3: Se encontraron ${uniqueParticipantIds.length} IDs de participantes únicos.`);
+
+    if (uniqueParticipantIds.length === 0) {
+        return new Response(JSON.stringify({ message: 'No se encontraron participantes en eventos pasados.' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
+        });
+    }
+
+    // 4. Obtener los detalles (nombre y email) de esos participantes
+    const { data: participants, error: participantsError } = await supabaseAdmin
+      .from('Participants')
+      .select('name, email')
+      .in('id', uniqueParticipantIds)
+      .not('email', 'is', null); // Solo traer participantes que tengan un email
+    if (participantsError) throw participantsError;
+
+    const recipientsList = participants;
+    console.log(`Paso 4: Se obtuvieron los detalles de ${recipientsList.length} participantes con email.`);
 
     if (recipientsList.length === 0) {
-      return new Response(JSON.stringify({ message: 'No se encontraron participantes interesados.' }), {
+      return new Response(JSON.stringify({ message: 'No se encontraron participantes interesados con email.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-      })
+      });
     }
 
-    // 5. PREPARAR Y ENVIAR EL PAYLOAD A MAKE.COM
+    // 5. Preparar y enviar el payload a Make.com
     const payload = {
-      event: { ...eventData },
+      event: eventData,
       recipients: recipientsList,
-    }
-    delete payload.event.organizing_commissions; // Limpiar datos innecesarios
-    delete payload.event.organizing_categories; // Limpiar datos innecesarios
+    };
 
+    console.log('Paso 5: Enviando payload a Make.com...');
     const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    })
+    });
 
     if (!makeResponse.ok) {
-      throw new Error(`Error en la comunicación con Make.com: ${makeResponse.statusText}`)
+      const errorBody = await makeResponse.text();
+      throw new Error(`Error al enviar datos a Make.com: ${makeResponse.statusText} - ${errorBody}`);
     }
+    console.log('Payload enviado a Make.com con éxito.');
 
-    // 6. DEVOLVER RESPUESTA DE ÉXITO
     return new Response(JSON.stringify({ message: `Solicitud enviada para ${recipientsList.length} participante(s).` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-    })
+    });
 
   } catch (error) {
-    // Manejo centralizado de errores
+    console.error('Error CRÍTICO en la Edge Function:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
-    })
+    });
   }
-})
+});

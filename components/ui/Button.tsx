@@ -17,6 +17,7 @@ const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = '
     ghost: 'bg-transparent text-primary-600 hover:bg-primary-50 focus:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-700/30 dark:focus:ring-primary-500',
     accent: 'bg-accent text-primary-950 hover:bg-yellow-400 focus:ring-yellow-500 dark:bg-accent dark:text-primary-950 dark:hover:bg-yellow-400 dark:focus:ring-yellow-500',
     info: 'bg-primary-400 text-white hover:bg-primary-500 focus:ring-primary-300 dark:bg-primary-500 dark:text-white dark:hover:bg-primary-600 dark:focus:ring-primary-400',
+    outline: 'bg-transparent border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-primary-500',
   };
 
   return (

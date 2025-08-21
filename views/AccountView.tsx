@@ -21,7 +21,7 @@ const AccountView: React.FC<AccountViewProps> = ({ onNavigateBack }) => {
 
   const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !supabase) return;
     setLoading('name');
     setMessage(null);
 
@@ -43,6 +43,7 @@ const AccountView: React.FC<AccountViewProps> = ({ onNavigateBack }) => {
 
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) return;
     setLoading('email');
     setMessage(null);
     try {
@@ -69,6 +70,7 @@ const AccountView: React.FC<AccountViewProps> = ({ onNavigateBack }) => {
     setLoading('password');
     setMessage(null);
     try {
+      if (!supabase) return;
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       setMessage({ type: 'success', content: 'Contraseña actualizada con éxito.' });
