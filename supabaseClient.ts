@@ -54,115 +54,37 @@ export type Database = {
         Row: { participant_id: string; commission_id: string };
         Insert: { participant_id: string; commission_id: string };
         Update: { participant_id?: string; commission_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "participant_commissions_participant_id_fkey",
-            columns: ["participant_id"],
-            referencedRelation: "participants",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "participant_commissions_commission_id_fkey",
-            columns: ["commission_id"],
-            referencedRelation: "commissions",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       meeting_attendees: {
         Row: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { meeting_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { meeting_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [
-          {
-            foreignKeyName: "meeting_attendees_meeting_id_fkey",
-            columns: ["meeting_id"],
-            referencedRelation: "meetings",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_attendees_participant_id_fkey",
-            columns: ["participant_id"],
-            referencedRelation: "participants",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       event_attendees: {
         Row: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Insert: { event_id: string; participant_id: string; attendance_type: "in_person" | "online" };
         Update: { event_id?: string; participant_id?: string; attendance_type?: "in_person" | "online" };
-        Relationships: [
-          {
-            foreignKeyName: "event_attendees_event_id_fkey",
-            columns: ["event_id"],
-            referencedRelation: "events",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_attendees_participant_id_fkey",
-            columns: ["participant_id"],
-            referencedRelation: "participants",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       event_invitees: {
         Row: { event_id: string; participant_id: string; };
         Insert: { event_id: string; participant_id: string; };
         Update: { event_id?: string; participant_id?: string; };
-        Relationships: [
-          {
-            foreignKeyName: "event_invitees_event_id_fkey",
-            columns: ["event_id"],
-            referencedRelation: "events",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_invitees_participant_id_fkey",
-            columns: ["participant_id"],
-            referencedRelation: "participants",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       event_organizing_commissions: {
         Row: { event_id: string; commission_id: string };
         Insert: { event_id: string; commission_id: string };
         Update: { event_id?: string; commission_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "event_organizing_commissions_event_id_fkey",
-            columns: ["event_id"],
-            referencedRelation: "events",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_organizing_commissions_commission_id_fkey",
-            columns: ["commission_id"],
-            referencedRelation: "commissions",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       event_organizing_categories: {
         Row: { event_id: string; category_id: string };
         Insert: { event_id: string; category_id: string };
         Update: { event_id?: string; category_id?: string };
-        Relationships: [
-          {
-            foreignKeyName: "event_organizing_categories_event_id_fkey",
-            columns: ["event_id"],
-            referencedRelation: "events",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_organizing_categories_category_id_fkey",
-            columns: ["category_id"],
-            referencedRelation: "event_categories",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       roles: {
         Row: { id: number; name: string };
@@ -193,20 +115,7 @@ export type Database = {
         Row: { role_id: number; permission_id: number };
         Insert: { role_id: number; permission_id: number };
         Update: { role_id?: number; permission_id?: number };
-        Relationships: [
-          {
-            foreignKeyName: "rolepermissions_role_id_fkey",
-            columns: ["role_id"],
-            referencedRelation: "roles",
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rolepermissions_permission_id_fkey",
-            columns: ["permission_id"],
-            referencedRelation: "permissions",
-            referencedColumns: ["id"]
-          }
-        ];
+        Relationships: [];
       },
       afiliaciones_remotos: {
         Row: {
@@ -287,7 +196,7 @@ export const participantToSupabase = (participant: Omit<Participant, 'id'> & { i
   return data;
 };
 export const participantToSupabaseForUpdate = (participant: Omit<Participant, 'id'>): Database['public']['Tables']['participants']['Update'] => ({ name: participant.name, id_establecimiento: participant.id_establecimiento || null, role: participant.role || null, email: participant.email?.trim() ? participant.email.trim() : null, phone: participant.phone || null, });
-export const participantFromSupabase = (dbParticipant: any): Participant => ({ id: dbParticipant.id, name: dbParticipant.name, id_establecimiento: dbParticipant.id_establecimiento, role: dbParticipant.role ?? null, email: dbParticipant.email ?? null, phone: dbParticipant.phone, });
+export const participantFromSupabase = (dbParticipant: any): Participant => ({ id: dbParticipant.id, name: dbParticipant.name, id_establecimiento: dbParticipant.id_establecimiento ?? null, role: dbParticipant.role ?? null, email: dbParticipant.email ?? null, phone: dbParticipant.phone ?? null, });
 
 export const meetingToSupabase = (meeting: Omit<Meeting, 'id'> & { id?: string }): Database['public']['Tables']['meetings']['Insert'] => {
     const data: Database['public']['Tables']['meetings']['Insert'] = { subject: meeting.subject, commission_id: meeting.meetingCategoryId, date: meeting.date, start_time: meeting.startTime || null, end_time: meeting.endTime || null, location: meeting.location || null, external_participants_count: meeting.externalParticipantsCount ?? null, description: meeting.description || null, is_cancelled: meeting.is_cancelled ?? false };

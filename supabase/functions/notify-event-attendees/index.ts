@@ -4,7 +4,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// Tu URL de Webhook de Make.com
 const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/5xvals5fmiyzm4lsj69qpj128eeioo1o'
 
 serve(async (req) => {
@@ -22,81 +21,43 @@ serve(async (req) => {
     if (!eventId) throw new Error('El ID del evento es requerido.')
     console.log(`Función invocada para el evento: ${eventId}`);
 
-    // 1. Obtener detalles del evento actual
+    // 1. Obtener detalles del evento
+    // --- CORRECCIÓN: Se cambió 'startTime' a 'start_time' para que coincida con la base de datos ---
     const { data: eventData, error: eventError } = await supabaseAdmin
       .from('Events')
-      .select('subject, date, startTime, location, description, flyer_url, organizerType')
+      .select('subject, date, start_time, location, description, flyer_url, organizerType')
       .eq('id', eventId)
       .single()
     if (eventError) throw eventError;
     console.log('Paso 1: Datos del evento obtenidos:', eventData.subject);
 
-    let relevantEventIds: string[] = [];
+    // 2. Obtener la lista de invitados desde la tabla 'event_invitees'
+    const { data: invitees, error: inviteesError } = await supabaseAdmin
+      .from('event_invitees')
+      .select('participant:Participants(id, name, email)')
+      .eq('event_id', eventId);
 
-    // 2. Obtener los IDs de todos los eventos pasados que comparten la misma categoría
-    if (eventData.organizerType === 'meeting_category') {
-        const { data: categoryLinks } = await supabaseAdmin.from('event_organizing_meeting_categories').select('meeting_category_id').eq('event_id', eventId);
-        const commissionIds = categoryLinks?.map(c => c.meeting_category_id) || [];
-        if (commissionIds.length > 0) {
-            const { data: eventLinks } = await supabaseAdmin.from('event_organizing_meeting_categories').select('event_id').in('meeting_category_id', commissionIds);
-            relevantEventIds = eventLinks?.map(e => e.event_id) || [];
-        }
-    } else {
-        const { data: categoryLinks } = await supabaseAdmin.from('event_organizing_categories').select('category_id').eq('event_id', eventId);
-        const categoryIds = categoryLinks?.map(c => c.category_id) || [];
-        if (categoryIds.length > 0) {
-            const { data: eventLinks } = await supabaseAdmin.from('event_organizing_categories').select('event_id').in('category_id', categoryIds);
-            relevantEventIds = eventLinks?.map(e => e.event_id) || [];
-        }
-    }
-    console.log(`Paso 2: Se encontraron ${relevantEventIds.length} eventos relacionados.`);
+    if (inviteesError) throw inviteesError;
 
-    if (relevantEventIds.length === 0) {
-        return new Response(JSON.stringify({ message: 'No hay eventos pasados en esta categoría para encontrar participantes.' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-        });
-    }
+    const recipientsList = invitees
+      .map(item => item.participant)
+      .filter(p => p && p.email); // Filtrar por si algún participante no tiene email
 
-    // 3. Obtener los IDs de los participantes de esos eventos
-    const { data: attendeeLinks, error: attendeeLinksError } = await supabaseAdmin
-      .from('event_attendees')
-      .select('participant_id')
-      .in('event_id', relevantEventIds);
-    if (attendeeLinksError) throw attendeeLinksError;
-    
-    const uniqueParticipantIds = [...new Set(attendeeLinks.map(a => a.participant_id))];
-    console.log(`Paso 3: Se encontraron ${uniqueParticipantIds.length} IDs de participantes únicos.`);
-
-    if (uniqueParticipantIds.length === 0) {
-        return new Response(JSON.stringify({ message: 'No se encontraron participantes en eventos pasados.' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-        });
-    }
-
-    // 4. Obtener los detalles (nombre y email) de esos participantes
-    const { data: participants, error: participantsError } = await supabaseAdmin
-      .from('Participants')
-      .select('name, email')
-      .in('id', uniqueParticipantIds)
-      .not('email', 'is', null); // Solo traer participantes que tengan un email
-    if (participantsError) throw participantsError;
-
-    const recipientsList = participants;
-    console.log(`Paso 4: Se obtuvieron los detalles de ${recipientsList.length} participantes con email.`);
+    console.log(`Paso 2: Se encontraron ${recipientsList.length} invitados con email.`);
 
     if (recipientsList.length === 0) {
-      return new Response(JSON.stringify({ message: 'No se encontraron participantes interesados con email.' }), {
+      return new Response(JSON.stringify({ message: 'No se encontraron invitados con email para notificar.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
       });
     }
 
-    // 5. Preparar y enviar el payload a Make.com
+    // 3. Enviar los datos a Make.com
     const payload = {
       event: eventData,
       recipients: recipientsList,
     };
 
-    console.log('Paso 5: Enviando payload a Make.com...');
+    console.log('Paso 3: Enviando payload a Make.com...');
     const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,12 +65,11 @@ serve(async (req) => {
     });
 
     if (!makeResponse.ok) {
-      const errorBody = await makeResponse.text();
-      throw new Error(`Error al enviar datos a Make.com: ${makeResponse.statusText} - ${errorBody}`);
+      throw new Error(`Error al enviar datos a Make.com: ${await makeResponse.text()}`);
     }
     console.log('Payload enviado a Make.com con éxito.');
 
-    return new Response(JSON.stringify({ message: `Solicitud enviada para ${recipientsList.length} participante(s).` }), {
+    return new Response(JSON.stringify({ message: `Invitaciones enviadas a la cola para ${recipientsList.length} participante(s).` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
     });
 
@@ -119,4 +79,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500,
     });
   }
-});
+})

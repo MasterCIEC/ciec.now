@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory, Company, EventInvitee } from '../types'; // --- NUEVO: Importar EventInvitee
+import { Event, Participant, MeetingCategory, EventCategory, EventAttendee, EventOrganizingMeetingCategory, EventOrganizingCategory, Company, EventInvitee } from '../types';
 import Modal from '../components/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -22,14 +22,13 @@ const formatTo12Hour = (timeString: string | null | undefined): string => {
   return `${h12}:${minutes} ${ampm}`;
 };
 
-// --- MODIFICADO: Actualizar las props para el nuevo flujo ---
 interface ManageEventsViewProps {
   events: Event[];
   participants: Participant[];
   meetingCategories: MeetingCategory[];
   eventCategories: EventCategory[];
   eventAttendees: EventAttendee[];
-  eventInvitees: EventInvitee[]; // --- NUEVO: Recibir la lista de invitados
+  eventInvitees: EventInvitee[]; // Prop para recibir la lista de invitados
   eventOrganizingMeetingCategories: EventOrganizingMeetingCategory[];
   eventOrganizingCategories: EventOrganizingCategory[];
   companies: Company[];
@@ -92,7 +91,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
   const [eventForViewOrEdit, setEventForViewOrEdit] = useState<Event | null>(null);
   const [formData, setFormData] = useState<Omit<Event, 'id'>>(initialEventFormState);
   const [selectedOrganizerIdsState, setSelectedOrganizerIdsState] = useState<string[]>([]);
-  
   const [selectedInviteeIds, setSelectedInviteeIds] = useState<string[]>([]);
   const [selectedAttendeesInPerson, setSelectedAttendeesInPerson] = useState<string[]>([]);
   const [selectedAttendeesOnline, setSelectedAttendeesOnline] = useState<string[]>([]);
@@ -313,21 +311,22 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
     if (formErrors[name]) setFormErrors(prev => ({...prev, [name]: ''}));
   };
 
+  // --- CORREGIDO: Función renombrada y con lógica actualizada ---
   const handleSendInvitations = async (event: Event) => {
-    const invitees = eventInvitees.filter(ei => ei.event_id === event.id);
-    if (invitees.length === 0) {
-      alert('No hay invitados registrados para este evento. Añada invitados antes de enviar las invitaciones.');
+    const currentInvitees = eventInvitees.filter(ei => ei.event_id === event.id);
+    if (currentInvitees.length === 0) {
+      alert('No hay invitados registrados para este evento. Por favor, edite el evento y añada invitados antes de enviar las invitaciones.');
       return;
     }
     
-    if (window.confirm(`¿Está seguro de que desea enviar ${invitees.length} invitaciones por correo para el evento "${event.subject}"?`)) {
+    if (window.confirm(`¿Está seguro de que desea enviar ${currentInvitees.length} invitaciones por correo para el evento "${event.subject}"?`)) {
       setNotifyingEventId(event.id);
       try {
           const { error } = await supabase.functions.invoke('notify-event-attendees', {
               body: { eventId: event.id },
           });
           if (error) throw error;
-          alert('Invitaciones enviadas con éxito.');
+          alert('Invitaciones enviadas con éxito a la cola de procesamiento.');
       } catch (error: any) {
           console.error('Error al enviar invitaciones:', error);
           alert(`Error al enviar invitaciones: ${error.message}`);
@@ -530,7 +529,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
 
     let pastEventIds: string[] = [];
     if (formData.organizerType === 'meeting_category') {
-      const { data } = await supabase.from('event_organizing_meeting_categories').select('event_id').in('meeting_category_id', selectedOrganizerIdsState);
+      const { data } = await supabase.from('event_organizing_commissions').select('event_id').in('commission_id', selectedOrganizerIdsState);
       pastEventIds = data?.map(e => e.event_id) || [];
     } else {
       const { data } = await supabase.from('event_organizing_categories').select('event_id').in('category_id', selectedOrganizerIdsState);
@@ -619,7 +618,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
               });
           }
       });
-      // --- CORRECCIÓN: Añadir .filter(Boolean) para evitar errores con datos indefinidos ---
       return meetingCategories
           .filter(Boolean)
           .map(c => ({ ...c, count: counts[c.id] || 0 }))
@@ -638,7 +636,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
               });
           }
       });
-      // --- CORRECCIÓN: Añadir .filter(Boolean) para evitar errores con datos indefinidos ---
       return eventCategories
           .filter(Boolean)
           .map(c => ({ ...c, count: counts[c.id] || 0 }))
@@ -646,7 +643,6 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
           .sort((a, b) => a.name.localeCompare(b.name));
   }, [eventCategories, eventsFilteredBySearch, eventOrganizingCategories]);
 
-  // --- CORRECCIÓN: Optimizar este hook para evitar re-renderizados innecesarios ---
   useEffect(() => {
     const allOrganizers = [
         ...sidebarMeetingCategoryOrganizers.map(c => ({ type: 'meeting_category', id: c.id })),
@@ -664,7 +660,7 @@ const ManageEventsView: React.FC<ManageEventsViewProps> = ({
             setSelectedOrganizer(null);
         }
     }
-  }, [sidebarMeetingCategoryOrganizers, sidebarEventCategoryOrganizers]); // Se eliminó 'selectedOrganizer' de las dependencias
+  }, [sidebarMeetingCategoryOrganizers, sidebarEventCategoryOrganizers]);
 
 
   const filteredEvents = useMemo(() => {

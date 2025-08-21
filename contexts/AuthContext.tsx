@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
 
   const fetchProfileAndPermissions = useCallback(async (user: User) => {
     try {
+      if (!supabase) throw new Error("Supabase client not initialized");
       const { data: profileData, error: profileError } = await supabase
         .from('userprofiles')
         .select(`
@@ -46,19 +47,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
         setProfile(profileData as any as UserProfile);
         
         if (profileData.role_id) {
-          const { data: permsData, error: permsError } = await supabase
+          // 1. Get permission IDs for the role
+          const { data: rolePermsData, error: rolePermsError } = await supabase
             .from('rolepermissions')
-            .select(`
-              permissions (
-                action,
-                subject
-              )
-            `)
+            .select('permission_id')
             .eq('role_id', profileData.role_id);
+          if (rolePermsError) throw rolePermsError;
           
-          if (permsError) throw permsError;
-          const userPermissions = permsData?.map(p => p.permissions).flat().filter(Boolean) as Permission[] || [];
-          setPermissions(userPermissions);
+          if (rolePermsData && rolePermsData.length > 0) {
+            const permissionIds = rolePermsData.map(rp => rp.permission_id);
+            // 2. Get permissions from IDs
+            const { data: permsData, error: permsError } = await supabase
+              .from('permissions')
+              .select('*')
+              .in('id', permissionIds);
+            
+            if (permsError) throw permsError;
+            setPermissions((permsData as Permission[]) || []);
+          } else {
+            setPermissions([]);
+          }
         } else {
           setPermissions([]);
         }
@@ -76,6 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
     setLoading(true);
     const checkSession = async () => {
         try {
+          if (!supabase) return;
           const { data: { session } } = await supabase.auth.getSession();
           setSession(session);
           setUser(session?.user ?? null);
@@ -91,11 +100,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
 
     checkSession();
 
+    if (!supabase) return;
+
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Prevent re-fetching profile and showing loader on simple token refresh
+      if (_event === 'TOKEN_REFRESHED') {
+        setSession(session);
+        return;
+      }
+
+      setLoading(true);
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        setLoading(true);
         try {
           await fetchProfileAndPermissions(session.user);
         } catch (e) {
@@ -116,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
   }, [fetchProfileAndPermissions]);
 
   const signOut = async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
   };
   

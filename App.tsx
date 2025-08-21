@@ -460,7 +460,13 @@ const AppContent = (): JSX.Element => {
     await supabase.from('event_organizing_categories').delete().eq('event_id', eventId);
     const { error } = await supabase.from('events').delete().eq('id', eventId);
     if (error) console.error('Error al eliminar evento:', error.message);
-    else fetchEvents();
+    else {
+      fetchEvents();
+      fetchEventAttendees();
+      fetchEventInvitees();
+      fetchEventOrganizingMeetingCategories();
+      fetchEventOrganizingCategories();
+    }
   };
 
   const handleEditEvent = (event: Event) => { setEventToEdit(event); navigate(ViewKey.ManageEvents); };

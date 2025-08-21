@@ -40,10 +40,10 @@ export interface Company {
 export interface Participant {
   id: string;
   name: string;
-  id_establecimiento?: string | null;
+  id_establecimiento: string | null;
   role: string | null;
   email: string | null;
-  phone?: string | null;
+  phone: string | null;
 }
 
 export interface Meeting {
@@ -52,7 +52,7 @@ export interface Meeting {
   meetingCategoryId: string;
   date: string;
   startTime: string | null;
-  endTime?: string;
+  endTime?: string | null;
   location?: string | null;
   externalParticipantsCount?: number;
   description?: string | null;
@@ -70,7 +70,7 @@ export interface Event {
   organizerType: 'meeting_category' | 'category';
   date: string;
   startTime: string;
-  endTime?: string;
+  endTime?: string | null;
   location?: string | null;
   externalParticipantsCount?: number;
   description?: string | null;
