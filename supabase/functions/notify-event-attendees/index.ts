@@ -4,7 +4,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/5xvals5fmiyzm4lsj69qpj128eeioo1o'
+const MAKE_WEBHOOK_URL = 'https://hook.us2.make.com/y3yd8rfq9i2uj5nusswry59sk4y9v5yt'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,29 +21,61 @@ serve(async (req) => {
     if (!eventId) throw new Error('El ID del evento es requerido.')
     console.log(`Función invocada para el evento: ${eventId}`);
 
-    // 1. Obtener detalles del evento
-    // --- CORRECCIÓN: Se cambió 'startTime' a 'start_time' para que coincida con la base de datos ---
+    // 1. Obtener detalles del evento (sin la columna 'organizerType')
     const { data: eventData, error: eventError } = await supabaseAdmin
-      .from('Events')
-      .select('subject, date, start_time, location, description, flyer_url, organizerType')
+      .from('events')
+      .select('id, subject, date, start_time, location, description, flyer_url')
       .eq('id', eventId)
       .single()
+
     if (eventError) throw eventError;
     console.log('Paso 1: Datos del evento obtenidos:', eventData.subject);
 
-    // 2. Obtener la lista de invitados desde la tabla 'event_invitees'
+    // 2. Determinar el organizador y obtener su nombre
+    let organizerName = 'Organizador no especificado';
+    
+    // Primero, busca en las comisiones
+    const { data: commissionLinks, error: commissionError } = await supabaseAdmin
+        .from('event_organizing_commissions')
+        .select('commissions(name)') // Hace un join para obtener el nombre directamente
+        .eq('event_id', eventId);
+    
+    if (commissionError) console.error("Error buscando comisiones organizadoras:", commissionError.message);
+
+    if (commissionLinks && commissionLinks.length > 0) {
+        organizerName = commissionLinks.map(link => link.commissions.name).join(', ');
+    } else {
+        // Si no se encontró, busca en las categorías de eventos
+        const { data: categoryLinks, error: categoryError } = await supabaseAdmin
+            .from('event_organizing_categories')
+            .select('event_categories(name)') // Join para obtener el nombre
+            .eq('event_id', eventId);
+        
+        if (categoryError) console.error("Error buscando categorías organizadoras:", categoryError.message);
+
+        if (categoryLinks && categoryLinks.length > 0) {
+            organizerName = categoryLinks.map(link => link.event_categories.name).join(', ');
+        }
+    }
+    
+    // Añadimos el nombre del organizador a los datos del evento
+    const finalEventData = { ...eventData, organizerName };
+    console.log(`Paso 2: Organizador determinado: ${organizerName}`);
+
+    // 3. Obtener la lista de invitados
     const { data: invitees, error: inviteesError } = await supabaseAdmin
       .from('event_invitees')
-      .select('participant:Participants(id, name, email)')
+      .select('participants(id, name, email)') // Corregido para coincidir con tu schema
       .eq('event_id', eventId);
 
     if (inviteesError) throw inviteesError;
 
+    // El join ya devuelve el objeto del participante, así que simplificamos esto
     const recipientsList = invitees
-      .map(item => item.participant)
-      .filter(p => p && p.email); // Filtrar por si algún participante no tiene email
+      .map(item => item.participants)
+      .filter(p => p && p.email);
 
-    console.log(`Paso 2: Se encontraron ${recipientsList.length} invitados con email.`);
+    console.log(`Paso 3: Se encontraron ${recipientsList.length} invitados con email.`);
 
     if (recipientsList.length === 0) {
       return new Response(JSON.stringify({ message: 'No se encontraron invitados con email para notificar.' }), {
@@ -51,13 +83,13 @@ serve(async (req) => {
       });
     }
 
-    // 3. Enviar los datos a Make.com
+    // 4. Enviar los datos a Make.com
     const payload = {
-      event: eventData,
+      event: finalEventData, // Usamos los datos del evento con el nombre del organizador
       recipients: recipientsList,
     };
 
-    console.log('Paso 3: Enviando payload a Make.com...');
+    console.log('Paso 4: Enviando payload a Make.com...');
     const makeResponse = await fetch(MAKE_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,7 +97,9 @@ serve(async (req) => {
     });
 
     if (!makeResponse.ok) {
-      throw new Error(`Error al enviar datos a Make.com: ${await makeResponse.text()}`);
+      const errorBody = await makeResponse.text();
+      console.error("Error de Make.com:", errorBody);
+      throw new Error(`Error al enviar datos a Make.com: ${errorBody}`);
     }
     console.log('Payload enviado a Make.com con éxito.');
 
