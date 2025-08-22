@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
   const [permissions, setPermissions] = useState<Permission[]>([]);
 
   const fetchProfileAndPermissions = useCallback(async (user: User) => {
+    // ... esta función no cambia ...
     try {
       if (!supabase) throw new Error("Supabase client not initialized");
       const { data: profileData, error: profileError } = await supabase
@@ -47,7 +48,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
         setProfile(profileData as any as UserProfile);
         
         if (profileData.role_id) {
-          // 1. Get permission IDs for the role
           const { data: rolePermsData, error: rolePermsError } = await supabase
             .from('rolepermissions')
             .select('permission_id')
@@ -56,7 +56,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
           
           if (rolePermsData && rolePermsData.length > 0) {
             const permissionIds = rolePermsData.map(rp => rp.permission_id);
-            // 2. Get permissions from IDs
             const { data: permsData, error: permsError } = await supabase
               .from('permissions')
               .select('*')
@@ -75,62 +74,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }): JSX.Element
       console.error('Error fetching user profile or permissions:', error);
       setProfile(null);
       setPermissions([]);
-      // Re-throw the error so the caller can handle it, e.g., in a finally block.
       throw error;
     }
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    const checkSession = async () => {
-        try {
-          if (!supabase) return;
-          const { data: { session } } = await supabase.auth.getSession();
-          setSession(session);
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchProfileAndPermissions(session.user);
-          }
-        } catch (e) {
-          console.error("Error during initial session check:", e);
-        } finally {
-          setLoading(false);
-        }
-    };
-
-    checkSession();
-
-    if (!supabase) return;
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      // Prevent re-fetching profile and showing loader on simple token refresh
-      if (_event === 'TOKEN_REFRESHED') {
-        setSession(session);
-        return;
-      }
-
-      setLoading(true);
+    const checkInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         try {
           await fetchProfileAndPermissions(session.user);
         } catch (e) {
-          console.error("Error fetching profile on auth change:", e);
-        } finally {
-          setLoading(false);
+          console.error("Error during initial session check:", e);
         }
-      } else {
-        setProfile(null);
-        setPermissions([]);
-        setLoading(false); // Also stop loading on logout
       }
+      setLoading(false);
+    };
+
+    checkInitialSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      // Lógica robusta para evitar recargas innecesarias
+      const currentUser = user;
+      const newUser = newSession?.user ?? null;
+
+      // Solo activa la pantalla de carga si el usuario realmente cambia (login/logout)
+      if (currentUser?.id !== newUser?.id) {
+        setLoading(true);
+        if (newUser) {
+          await fetchProfileAndPermissions(newUser);
+        } else {
+          setProfile(null);
+          setPermissions([]);
+        }
+        setLoading(false);
+      }
+      
+      setSession(newSession);
+      setUser(newUser);
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [fetchProfileAndPermissions]);
+  }, []); // Dependencias vacías para que se ejecute solo una vez
 
   const signOut = async () => {
     if (!supabase) return;

@@ -226,15 +226,15 @@ const AppContent = (): JSX.Element => {
   }, []);
 
   const fetchAllData = useCallback(async () => {
-    if (supabase && profile?.is_approved) {
+    if (supabase) {
       await Promise.all([
         fetchMeetingCategories(), fetchCompanies(), fetchParticipants(), fetchMeetings(), fetchEventCategories(),
         fetchEvents(), fetchParticipantMeetingCategories(), fetchMeetingAttendees(), fetchEventAttendees(), fetchEventInvitees(),
         fetchEventOrganizingMeetingCategories(), fetchEventOrganizingCategories(), fetchUsersAndRoles()
       ]);
     }
-  }, [
-    profile?.is_approved, fetchMeetingCategories, fetchCompanies, fetchParticipants, fetchMeetings,
+  }, [ 
+    fetchMeetingCategories, fetchCompanies, fetchParticipants, fetchMeetings,
     fetchEventCategories, fetchEvents, fetchParticipantMeetingCategories,
     fetchMeetingAttendees, fetchEventAttendees, fetchEventInvitees, fetchEventOrganizingMeetingCategories,
     fetchEventOrganizingCategories, fetchUsersAndRoles
@@ -245,19 +245,6 @@ const AppContent = (): JSX.Element => {
       fetchAllData();
     }
   }, [profile?.is_approved, fetchAllData]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && profile?.is_approved) {
-        fetchAllData();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [fetchAllData, profile?.is_approved]);
-
 
   if (loading) {
     return (
